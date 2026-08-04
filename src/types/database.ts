@@ -94,6 +94,166 @@ export type Database = {
         }
         Relationships: []
       }
+      system_catalog_categories: {
+        Row: {
+          id: number
+          code: string
+          name_ms: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          code: string
+          name_ms: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          name_ms?: string
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_catalog_items: {
+        Row: {
+          id: number
+          category_id: number
+          code: string
+          name_ms: string
+          description_ms: string
+          unit: string
+          default_rate: number
+          price_note_ms: string | null
+          guide_key: string | null
+          version: number
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          category_id: number
+          code: string
+          name_ms: string
+          description_ms: string
+          unit: string
+          default_rate?: number
+          price_note_ms?: string | null
+          guide_key?: string | null
+          version?: number
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: number
+          code?: string
+          name_ms?: string
+          description_ms?: string
+          unit?: string
+          default_rate?: number
+          price_note_ms?: string | null
+          guide_key?: string | null
+          version?: number
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      company_catalog_categories: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          source_category_id: number | null
+          name: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          source_category_id?: number | null
+          name: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      company_catalog_items: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          category_id: number
+          source_item_id: number | null
+          imported_master_version: number | null
+          code: string | null
+          name: string
+          description: string
+          unit: string
+          rate: number
+          price_note: string | null
+          guide_key: string | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          category_id: number
+          source_item_id?: number | null
+          imported_master_version?: number | null
+          code?: string | null
+          name: string
+          description: string
+          unit: string
+          rate?: number
+          price_note?: string | null
+          guide_key?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: number
+          name?: string
+          description?: string
+          unit?: string
+          rate?: number
+          price_note?: string | null
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -101,4 +261,3 @@ export type Database = {
     CompositeTypes: Record<string, never>
   }
 }
-

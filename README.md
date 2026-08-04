@@ -9,6 +9,7 @@ Mobile-first contractor operations PWA for company profiles, site visits, quotat
 - Installable PWA configuration
 - Supabase email/password authentication UI
 - One-user/one-company profile form
+- Tenant-isolated editable catalog with default renovation items and prices
 - Agreed V1 navigation and milestone placeholders
 
 ## Local setup

@@ -10,7 +10,7 @@ This repository is a brand-new system. Legacy MRPI systems are out of scope and 
 - Supabase project ref: `jhfvxsblckejvfnkjsrk`
 - Supabase dashboard: `https://supabase.com/dashboard/project/jhfvxsblckejvfnkjsrk`
 - Supabase region: `ap-southeast-1` (Singapore)
-- Cloudflare Pages project: not created yet
+- Cloudflare Pages project: `mrpi-contractor-suite-dev`
+- Cloudflare Pages URL: `https://mrpi-contractor-suite-dev.pages.dev`
 
 Only resources listed here may be used for this application. Never commit passwords, secret keys, service-role keys, access tokens, or production credentials.
-

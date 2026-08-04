@@ -1,4 +1,4 @@
-import { Bell, BookOpenText, ClipboardPenLine, Files, FolderKanban, Landmark } from 'lucide-react'
+import { Bell, ClipboardPenLine, Files, FolderKanban, Landmark } from 'lucide-react'
 import { useEffect } from 'react'
 import { Route, Switch, useLocation } from 'wouter'
 import { AuthProvider } from './auth/AuthProvider'
@@ -6,6 +6,7 @@ import { RequireAuth } from './auth/RequireAuth'
 import { AppShell } from './components/AppShell'
 import { isSupabaseConfigured } from './lib/supabase'
 import { AuthPage } from './pages/AuthPage'
+import { CatalogPage } from './pages/CatalogPage'
 import { CompanyProfilePage } from './pages/CompanyProfilePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { MoreMenuPage } from './pages/MoreMenuPage'
@@ -43,7 +44,7 @@ function ProtectedRoutes() {
       <Route path="/sebutharga"><PlaceholderPage title="Senarai Sebutharga" description="Draf, versi semakan, sebutharga dihantar dan status diterima akan dikendalikan di sini." milestone="Milestone 1" icon={Files} /></Route>
       <Route path="/projek"><PlaceholderPage title="Projek" description="Projek aktif, jadual bayaran, VO, invois dan kemajuan kerja akan dipusatkan di sini." milestone="Milestone 2" icon={FolderKanban} /></Route>
       <Route path="/kewangan"><PlaceholderPage title="Kewangan" description="Invois, bayaran separa, peruntukan bayaran, resit dan penyata akaun akan dikendalikan di sini." milestone="Milestone 2" icon={Landmark} /></Route>
-      <Route path="/katalog"><PlaceholderPage title="Katalog & Harga" description="Katalog peribadi setiap syarikat, harga, unit dan import item induk akan dibina di sini." milestone="Milestone 1" icon={BookOpenText} /></Route>
+      <Route path="/katalog"><CatalogPage /></Route>
       <Route path="/notifikasi"><PlaceholderPage title="Notifikasi" description="Peringatan bayaran, dokumen belum lengkap dan tindakan projek akan dipaparkan di sini." milestone="Milestone 3" icon={Bell} /></Route>
       <Route path="/menu"><MoreMenuPage /></Route>
       <Route><NotFoundRedirect /></Route>
