@@ -1,6 +1,6 @@
 import { Eye, EyeOff, Hammer, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 import { Brand } from '../components/Brand'
 import { supabase } from '../lib/supabase'
@@ -26,14 +26,12 @@ export function AuthPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const { session } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const [, navigate] = useLocation()
 
   useEffect(() => {
     if (!session) return
-    const requestedPath = (location.state as { from?: string } | null)?.from
-    navigate(requestedPath || '/', { replace: true })
-  }, [location.state, navigate, session])
+    navigate('/', { replace: true })
+  }, [navigate, session])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -247,4 +245,3 @@ export function AuthPage() {
     </main>
   )
 }
-

@@ -12,8 +12,8 @@ import {
   Menu,
   Settings2,
 } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 import { Brand } from './Brand'
 
@@ -36,10 +36,14 @@ const mobileNav = [
   { to: '/menu', label: 'Lagi', icon: Menu },
 ]
 
-export function AppShell() {
+function isCurrentPath(currentPath: string, targetPath: string, exact = false) {
+  return exact ? currentPath === targetPath : currentPath === targetPath || currentPath.startsWith(`${targetPath}/`)
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
   const [signingOut, setSigningOut] = useState(false)
   const { signOut } = useAuth()
-  const navigate = useNavigate()
+  const [currentPath, navigate] = useLocation()
 
   async function handleSignOut() {
     try {
@@ -56,23 +60,22 @@ export function AppShell() {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">
         <Brand />
         <nav className="mt-8 flex-1 space-y-1" aria-label="Menu utama">
-          {desktopNav.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
+          {desktopNav.map(({ to, label, icon: Icon, end }) => {
+            const active = isCurrentPath(currentPath, to, end)
+            return (
+            <Link
               key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `flex min-h-11 items-center gap-3 rounded-xl px-3.5 text-sm font-semibold transition ${
-                  isActive
+              href={to}
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3.5 text-sm font-semibold transition ${
+                  active
                     ? 'bg-slate-950 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
-                }`
-              }
+                }`}
             >
               <Icon className="h-5 w-5" aria-hidden="true" />
               {label}
-            </NavLink>
-          ))}
+            </Link>
+          )})}
         </nav>
         <button
           type="button"
@@ -95,51 +98,49 @@ export function AppShell() {
               <p className="text-sm font-semibold text-slate-500">Ruang kerja syarikat</p>
             </div>
             <div className="flex items-center gap-2">
-              <NavLink
-                to="/notifikasi"
+              <Link
+                href="/notifikasi"
                 className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 aria-label="Notifikasi"
               >
                 <Bell className="h-5 w-5" />
-              </NavLink>
-              <NavLink
-                to="/profil"
+              </Link>
+              <Link
+                href="/profil"
                 className="grid h-11 w-11 place-items-center rounded-xl bg-slate-950 text-amber-300 hover:bg-slate-800"
                 aria-label="Profil syarikat"
               >
                 <Settings2 className="h-5 w-5" />
-              </NavLink>
+              </Link>
             </div>
           </div>
         </header>
 
         <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
-          <Outlet />
+          {children}
         </main>
       </div>
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pt-2 shadow-[0_-8px_30px_rgb(15_23_42/0.08)] backdrop-blur lg:hidden" aria-label="Navigasi telefon">
-        {mobileNav.map(({ to, label, icon: Icon, end, primary }) => (
-          <NavLink
+        {mobileNav.map(({ to, label, icon: Icon, end, primary }) => {
+          const active = isCurrentPath(currentPath, to, end)
+          return (
+          <Link
             key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              `relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-bold transition ${
+            href={to}
+            className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-bold transition ${
                 primary
                   ? '-mt-5 bg-amber-400 text-slate-950 shadow-lg shadow-amber-300/40'
-                  : isActive
+                  : active
                     ? 'text-slate-950'
                     : 'text-slate-500'
-              }`
-            }
+              }`}
           >
             <Icon className={primary ? 'h-6 w-6' : 'h-5 w-5'} aria-hidden="true" />
             {label}
-          </NavLink>
-        ))}
+          </Link>
+        )})}
       </nav>
     </div>
   )
 }
-

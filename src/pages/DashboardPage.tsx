@@ -1,5 +1,5 @@
 import { ArrowRight, Banknote, ClipboardPenLine, FilePlus2, FolderKanban, UserRoundCog } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'wouter'
 
 const summaries = [
   { label: 'Sebutharga draf', value: '0', icon: FilePlus2, tone: 'bg-blue-50 text-blue-700' },
@@ -45,7 +45,7 @@ export function DashboardPage() {
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {quickActions.map(({ to, label, help, icon: Icon }) => (
-            <Link key={to} to={to} className="group flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md">
+            <Link key={to} href={to} className="group flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md">
               <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
                 <Icon className="h-6 w-6" />
               </div>
@@ -61,4 +61,3 @@ export function DashboardPage() {
     </div>
   )
 }
-

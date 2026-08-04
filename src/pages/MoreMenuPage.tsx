@@ -1,5 +1,5 @@
 import { BookOpenText, Building2, Files, Landmark, LogOut } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 
 const items = [
@@ -11,14 +11,14 @@ const items = [
 
 export function MoreMenuPage() {
   const { signOut } = useAuth()
-  const navigate = useNavigate()
+  const [, navigate] = useLocation()
 
   return (
     <section>
       <h1 className="text-2xl font-black tracking-tight">Menu</h1>
       <div className="mt-5 space-y-3">
         {items.map(({ to, label, icon: Icon }) => (
-          <Link key={to} to={to} className="flex min-h-16 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 font-bold shadow-sm">
+          <Link key={to} href={to} className="flex min-h-16 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 font-bold shadow-sm">
             <Icon className="h-5 w-5 text-amber-700" />
             {label}
           </Link>
@@ -38,4 +38,3 @@ export function MoreMenuPage() {
     </section>
   )
 }
-

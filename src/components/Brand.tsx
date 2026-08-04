@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'wouter'
 
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <Link to="/" className="inline-flex items-center gap-3 rounded-lg" aria-label="MRPI Contractor Suite">
+    <Link href="/" className="inline-flex items-center gap-3 rounded-lg" aria-label="MRPI Contractor Suite">
       <img src="/mrpi-mark.svg" alt="" className="h-10 w-10 rounded-xl shadow-sm" />
       {!compact && (
         <span className="leading-tight">
@@ -13,4 +13,3 @@ export function Brand({ compact = false }: { compact?: boolean }) {
     </Link>
   )
 }
-

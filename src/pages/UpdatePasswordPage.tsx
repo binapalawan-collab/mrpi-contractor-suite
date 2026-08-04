@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 import { Brand } from '../components/Brand'
 import { supabase } from '../lib/supabase'
@@ -10,7 +10,7 @@ export function UpdatePasswordPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const { session, loading } = useAuth()
-  const navigate = useNavigate()
+  const [, navigate] = useLocation()
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -41,7 +41,7 @@ export function UpdatePasswordPage() {
         ) : !session ? (
           <div className="mt-5">
             <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Pautan ini tidak sah atau telah tamat tempoh.</p>
-            <Link to="/login" className="mt-4 inline-flex min-h-11 items-center font-bold text-slate-950">Kembali ke log masuk</Link>
+            <Link href="/login" className="mt-4 inline-flex min-h-11 items-center font-bold text-slate-950">Kembali ke log masuk</Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -63,4 +63,3 @@ export function UpdatePasswordPage() {
     </main>
   )
 }
-
