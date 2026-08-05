@@ -35,11 +35,23 @@ import {
 import type { Client, SiteVisitArea, SiteVisitEntry } from '../../lib/siteVisit'
 import { QuotationItemDialog } from './QuotationItemDialog'
 import { useMemo, useState } from 'react'
+import {
+  clearQuotationItemDraft,
+  readQuotationItemDraft,
+  saveQuotationItemDraft,
+  type StoredQuotationItemEditorDraft,
+} from '../../lib/quotationDrafts'
+
+type SourceNote = {
+  note_text: string
+  measurement_text: string | null
+}
 
 type ItemDialogState = {
   sectionLocalId: string
   item: QuotationDraftItem | null
-  sourceEntry: SiteVisitEntry | null
+  sourceNote: SourceNote | null
+  initialDraft: StoredQuotationItemEditorDraft | null
 }
 
 type Props = {
@@ -49,6 +61,8 @@ type Props = {
   catalogItems: CatalogItem[]
   sourceAreas: SiteVisitArea[]
   sourceEntries: SiteVisitEntry[]
+  draftOwnerUserId: string
+  draftStorageId: string
   editable: boolean
   busy: boolean
   autosaveNotice: string
@@ -69,6 +83,8 @@ export function QuotationComposer({
   catalogItems,
   sourceAreas,
   sourceEntries,
+  draftOwnerUserId,
+  draftStorageId,
   editable,
   busy,
   autosaveNotice,
@@ -82,9 +98,30 @@ export function QuotationComposer({
   onWhatsApp,
 }: Props) {
   const [newSectionName, setNewSectionName] = useState('')
-  const [itemDialog, setItemDialog] = useState<ItemDialogState | null>(null)
   const areaMap = useMemo(() => new Map(sourceAreas.map((area) => [area.id, area])), [sourceAreas])
   const entryMap = useMemo(() => new Map(sourceEntries.map((entry) => [entry.id, entry])), [sourceEntries])
+  const activeSourceEntries = useMemo(() => sourceEntries.filter((entry) => entry.is_active), [sourceEntries])
+  const [itemDialog, setItemDialog] = useState<ItemDialogState | null>(() => {
+    if (!draftOwnerUserId || !draftStorageId) return null
+    const stored = readQuotationItemDraft(draftOwnerUserId, draftStorageId)
+    if (!stored) return null
+    if (!draft.sections.some((section) => section.local_id === stored.section_local_id)) {
+      clearQuotationItemDraft(draftOwnerUserId, draftStorageId)
+      return null
+    }
+    const sourceEntry = stored.item.source_site_visit_entry_id
+      ? entryMap.get(stored.item.source_site_visit_entry_id) ?? null
+      : null
+    return {
+      sectionLocalId: stored.section_local_id,
+      item: stored.item,
+      sourceNote: stored.source_note ?? (sourceEntry ? {
+        note_text: sourceEntry.note_text,
+        measurement_text: sourceEntry.measurement_text,
+      } : null),
+      initialDraft: stored,
+    }
+  })
   const usedEntryCounts = useMemo(() => {
     const counts = new Map<number, number>()
     for (const section of draft.sections) {
@@ -103,6 +140,16 @@ export function QuotationComposer({
 
   function updateSections(sections: QuotationDraftSection[]) {
     onChange({ ...draft, sections })
+  }
+
+  function closeItemDialog() {
+    clearQuotationItemDraft(draftOwnerUserId, draftStorageId)
+    setItemDialog(null)
+  }
+
+  function openItemDialog(dialog: Omit<ItemDialogState, 'initialDraft'>) {
+    clearQuotationItemDraft(draftOwnerUserId, draftStorageId)
+    setItemDialog({ ...dialog, initialDraft: null })
   }
 
   function chooseClient(clientId: string) {
@@ -167,7 +214,7 @@ export function QuotationComposer({
       const exists = section.items.some((candidate) => candidate.local_id === item.local_id)
       return { ...section, items: exists ? section.items.map((candidate) => candidate.local_id === item.local_id ? item : candidate) : [...section.items, item] }
     }))
-    setItemDialog(null)
+    closeItemDialog()
   }
 
   function removeItem(sectionLocalId: string, item: QuotationDraftItem) {
@@ -221,7 +268,11 @@ export function QuotationComposer({
       quantity: '1',
       rate: '0.00',
     }
-    setItemDialog({ sectionLocalId: targetSection.local_id, item, sourceEntry: entry })
+    openItemDialog({
+      sectionLocalId: targetSection.local_id,
+      item,
+      sourceNote: { note_text: entry.note_text, measurement_text: entry.measurement_text },
+    })
   }
 
   const statusTone = draft.status === 'accepted'
@@ -294,11 +345,11 @@ export function QuotationComposer({
         </div>
       </section>
 
-      {sourceEntries.length > 0 && (
+      {draft.source_site_visit_id !== null && (
         <section className="rounded-3xl border border-blue-200 bg-blue-50 p-4 sm:p-6">
-          <div className="flex items-start gap-3"><ClipboardPenLine className="mt-0.5 h-6 w-6 shrink-0 text-blue-700" /><div><p className="text-sm font-bold text-blue-700">Rujukan Lawatan Tapak</p><h2 className="mt-1 text-xl font-black text-blue-950">Pilih catatan yang diperlukan</h2><p className="mt-2 text-sm leading-6 text-blue-900">Tiada catatan menjadi item secara automatik. Tekan satu catatan, kemudian pilih item katalog atau isi item manual sendiri.</p></div></div>
+          <div className="flex items-start gap-3"><ClipboardPenLine className="mt-0.5 h-6 w-6 shrink-0 text-blue-700" /><div><p className="text-sm font-bold text-blue-700">Rujukan Lawatan Tapak · {activeSourceEntries.length} catatan</p><h2 className="mt-1 text-xl font-black text-blue-950">Pilih catatan yang diperlukan</h2><p className="mt-2 text-sm leading-6 text-blue-900">Sebutharga ini dipautkan kepada lawatan tapak. Tiada catatan menjadi item atau harga secara automatik—kau tetap pilih item katalog atau isi item manual sendiri.</p></div></div>
           <div className="mt-4 grid gap-2 md:grid-cols-2">
-            {sourceEntries.filter((entry) => entry.is_active).map((entry) => (
+            {activeSourceEntries.map((entry) => (
               <article key={entry.id} className="rounded-2xl border border-blue-200 bg-white p-3.5">
                 <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black text-blue-800">{areaMap.get(entry.area_id)?.name ?? 'Kawasan'}</span>{entry.needs_confirmation && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-800">Perlu Pengesahan</span>}{usedEntryCounts.has(entry.id) && <span className="text-[10px] font-black text-emerald-700">Digunakan {usedEntryCounts.get(entry.id)}×</span>}</div>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{entry.note_text}</p>
@@ -306,6 +357,7 @@ export function QuotationComposer({
                 {editable && <button type="button" onClick={() => useSourceEntry(entry)} className="mt-3 min-h-10 w-full rounded-xl bg-slate-950 px-3 text-xs font-black text-white">Pilih Item untuk Catatan Ini</button>}
               </article>
             ))}
+            {!activeSourceEntries.length && <p className="rounded-2xl border border-dashed border-blue-300 bg-white p-4 text-sm font-semibold text-blue-900">Lawatan tapak ini belum mempunyai catatan aktif untuk dipilih.</p>}
           </div>
         </section>
       )}
@@ -325,12 +377,19 @@ export function QuotationComposer({
                 <div key={item.local_id} className="rounded-2xl border border-slate-200 p-3.5">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2">{item.catalog_item_id ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-800">Katalog</span> : <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">Manual</span>}{item.source_site_visit_entry_id && <span className="text-[10px] font-black text-blue-700">Dari catatan tapak</span>}</div><p className="mt-2 font-black leading-5">{item.item_name}</p><p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>{item.measurement_text && <p className="mt-1 text-xs font-semibold leading-5 text-blue-700">{item.measurement_text}</p>}</div>
-                    {editable && <div className="flex shrink-0 flex-col gap-1"><button type="button" onClick={() => setItemDialog({ sectionLocalId: section.local_id, item, sourceEntry: item.source_site_visit_entry_id ? entryMap.get(item.source_site_visit_entry_id) ?? null : null })} className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600" aria-label="Edit item"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => removeItem(section.local_id, item)} className="grid h-9 w-9 place-items-center rounded-lg bg-red-50 text-red-600" aria-label="Buang item"><Trash2 className="h-4 w-4" /></button></div>}
+                    {editable && <div className="flex shrink-0 flex-col gap-1"><button type="button" onClick={() => {
+                      const sourceEntry = item.source_site_visit_entry_id ? entryMap.get(item.source_site_visit_entry_id) ?? null : null
+                      openItemDialog({
+                        sectionLocalId: section.local_id,
+                        item,
+                        sourceNote: sourceEntry ? { note_text: sourceEntry.note_text, measurement_text: sourceEntry.measurement_text } : null,
+                      })
+                    }} className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600" aria-label="Edit item"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => removeItem(section.local_id, item)} className="grid h-9 w-9 place-items-center rounded-lg bg-red-50 text-red-600" aria-label="Buang item"><Trash2 className="h-4 w-4" /></button></div>}
                   </div>
                   <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3"><div><p className="text-xs font-semibold text-slate-500">{item.quantity} {item.unit} × {formatMoney(Number(item.rate) || 0)}</p><p className="mt-1 text-lg font-black">{formatMoney(quotationItemAmount(item))}</p></div>{editable && <div className="flex gap-1"><button type="button" disabled={itemIndex === 0} onClick={() => moveItem(section.local_id, itemIndex, -1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 disabled:opacity-25" aria-label="Naikkan item"><ArrowUp className="h-4 w-4" /></button><button type="button" disabled={itemIndex === section.items.length - 1} onClick={() => moveItem(section.local_id, itemIndex, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 disabled:opacity-25" aria-label="Turunkan item"><ArrowDown className="h-4 w-4" /></button></div>}</div>
                 </div>
               ))}
-              {editable && <button type="button" onClick={() => setItemDialog({ sectionLocalId: section.local_id, item: null, sourceEntry: null })} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-sm font-black text-amber-900"><Plus className="h-5 w-5" />Tambah Item</button>}
+              {editable && <button type="button" onClick={() => openItemDialog({ sectionLocalId: section.local_id, item: null, sourceNote: null })} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-sm font-black text-amber-900"><Plus className="h-5 w-5" />Tambah Item</button>}
               {!section.items.length && !editable && <p className="py-5 text-center text-sm text-slate-400">Tiada item dalam ruangan ini.</p>}
             </div>
           </article>
@@ -355,7 +414,22 @@ export function QuotationComposer({
 
       <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><UserRound className="h-4 w-4" />{draft.header.client_name || 'Pelanggan belum diisi'}</span><Link href="/katalog" className="font-black text-amber-700">Buka Katalog & Harga</Link></div>
 
-      {itemDialog && <QuotationItemDialog categories={categories} catalogItems={catalogItems} initialItem={itemDialog.item} sourceNote={itemDialog.sourceEntry ? { note_text: itemDialog.sourceEntry.note_text, measurement_text: itemDialog.sourceEntry.measurement_text } : null} onClose={() => setItemDialog(null)} onSave={(item) => saveItem(itemDialog.sectionLocalId, item)} />}
+      {itemDialog && <QuotationItemDialog
+        categories={categories}
+        catalogItems={catalogItems}
+        initialItem={itemDialog.item}
+        initialDraft={itemDialog.initialDraft}
+        sourceNote={itemDialog.sourceNote}
+        onClose={closeItemDialog}
+        onDraftChange={(itemDraft) => {
+          saveQuotationItemDraft(draftOwnerUserId, draftStorageId, {
+            section_local_id: itemDialog.sectionLocalId,
+            ...itemDraft,
+            source_note: itemDialog.sourceNote,
+          })
+        }}
+        onSave={(item) => saveItem(itemDialog.sectionLocalId, item)}
+      />}
     </div>
   )
 }

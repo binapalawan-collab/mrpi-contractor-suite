@@ -1,5 +1,5 @@
 import { BookOpenText, Calculator, Check, Search, X } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { CatalogCategory, CatalogItem } from '../../lib/catalog'
 import {
   calculationMethodLabel,
@@ -11,6 +11,7 @@ import {
   type CalculationMethod,
   type QuotationDraftItem,
 } from '../../lib/quotation'
+import type { QuotationItemEditorDraft, StoredQuotationItemEditorDraft } from '../../lib/quotationDrafts'
 
 type SourceNote = {
   note_text: string
@@ -21,8 +22,10 @@ type Props = {
   categories: CatalogCategory[]
   catalogItems: CatalogItem[]
   initialItem: QuotationDraftItem | null
+  initialDraft: StoredQuotationItemEditorDraft | null
   sourceNote: SourceNote | null
   onClose: () => void
+  onDraftChange: (draft: Pick<QuotationItemEditorDraft, 'item' | 'mode' | 'search' | 'category_id'>) => void
   onSave: (item: QuotationDraftItem) => void
 }
 
@@ -53,12 +56,34 @@ function blankItem(sourceNote: SourceNote | null): QuotationDraftItem {
   }
 }
 
-export function QuotationItemDialog({ categories, catalogItems, initialItem, sourceNote, onClose, onSave }: Props) {
-  const [item, setItem] = useState<QuotationDraftItem>(() => initialItem ?? blankItem(sourceNote))
-  const [mode, setMode] = useState<'catalog' | 'manual'>(() => initialItem?.catalog_item_id ? 'catalog' : 'catalog')
-  const [search, setSearch] = useState('')
-  const [categoryId, setCategoryId] = useState<number | 'all'>('all')
+export function QuotationItemDialog({ categories, catalogItems, initialItem, initialDraft, sourceNote, onClose, onDraftChange, onSave }: Props) {
+  const [item, setItem] = useState<QuotationDraftItem>(() => initialDraft?.item ?? initialItem ?? blankItem(sourceNote))
+  const [mode, setMode] = useState<'catalog' | 'manual'>(() => initialDraft?.mode ?? (initialItem ? 'manual' : 'catalog'))
+  const [search, setSearch] = useState(() => initialDraft?.search ?? '')
+  const [categoryId, setCategoryId] = useState<number | 'all'>(() => initialDraft?.category_id ?? 'all')
   const [error, setError] = useState('')
+  const latestDraft = useRef<Pick<QuotationItemEditorDraft, 'item' | 'mode' | 'search' | 'category_id'>>({
+    item,
+    mode,
+    search,
+    category_id: categoryId,
+  })
+
+  latestDraft.current = { item, mode, search, category_id: categoryId }
+
+  useEffect(() => {
+    onDraftChange(latestDraft.current)
+  }, [categoryId, item, mode, onDraftChange, search])
+
+  useEffect(() => {
+    const persistBeforeLeaving = () => onDraftChange(latestDraft.current)
+    window.addEventListener('pagehide', persistBeforeLeaving)
+    document.addEventListener('visibilitychange', persistBeforeLeaving)
+    return () => {
+      window.removeEventListener('pagehide', persistBeforeLeaving)
+      document.removeEventListener('visibilitychange', persistBeforeLeaving)
+    }
+  }, [onDraftChange])
 
   const categoryNameMap = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories])
   const visibleCatalog = useMemo(() => {
@@ -133,6 +158,12 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, sou
 
         <form onSubmit={submit}>
           <div className="space-y-5 px-5 py-5 sm:px-6">
+            {initialDraft && (
+              <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+                Draf item terakhir dipulihkan. Kau boleh sambung dari maklumat yang telah diisi.
+              </p>
+            )}
+
             {sourceNote && (
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
                 <p className="font-black">Rujukan catatan tapak</p>

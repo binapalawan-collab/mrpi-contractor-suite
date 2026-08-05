@@ -486,12 +486,15 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
       {error && <p role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
       {notice && <p role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />{notice}</p>}
       <QuotationComposer
+        key={`${user?.id ?? 'signed-out'}:${draftStorageId}`}
         draft={draft}
         clients={clients}
         categories={categories}
         catalogItems={catalogItems}
         sourceAreas={sourceAreas}
         sourceEntries={sourceEntries}
+        draftOwnerUserId={user?.id ?? ''}
+        draftStorageId={draftStorageId}
         editable={draft.status === 'draft'}
         busy={busy}
         autosaveNotice={autosaveNotice}
