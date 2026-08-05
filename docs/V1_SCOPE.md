@@ -11,7 +11,7 @@
 
 ## Milestones
 
-1. Foundation, authentication, company profile, catalog and quotation.
+1. Foundation, authentication, company profile, catalog, site-visit intake and quotation.
 2. Projects, agreements, payment schedules, variation orders, invoices, payments, receipts and finance.
 3. Site operations, photos, defects, handover, warranty, notifications and dashboard completion.
 
@@ -26,3 +26,12 @@
 7. Kewangan
 8. Katalog & Harga
 
+## Lawatan Tapak checkpoint
+
+- Site notes are grouped by user-created `Kawasan kerja` such as Porch, Dapur or Bilik Air 1.
+- The main input is free text; measurement text and photos are optional.
+- Prices never appear during a site visit.
+- Voice input is not included.
+- Twelve common renovation guides appear only when the user requests one.
+- Guides are reminders only and never create catalog or quotation items automatically.
+- Photos are stored in a private Supabase bucket under the authenticated owner path.

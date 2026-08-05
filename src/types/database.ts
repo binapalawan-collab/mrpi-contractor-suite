@@ -1,6 +1,49 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 export type Database = {
   public: {
     Tables: {
+      clients: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          name: string
+          phone: string
+          phone_normalized: string
+          email: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          name: string
+          phone: string
+          phone_normalized: string
+          email?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          phone?: string
+          phone_normalized?: string
+          email?: string | null
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           id: number
@@ -248,6 +291,198 @@ export type Database = {
           unit?: string
           rate?: number
           price_note?: string | null
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_visits: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          client_id: number
+          project_title: string
+          visit_date: string
+          address_line_1: string
+          address_line_2: string | null
+          postcode: string | null
+          city: string
+          state: string
+          country_code: string
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          client_id: number
+          project_title?: string
+          visit_date?: string
+          address_line_1: string
+          address_line_2?: string | null
+          postcode?: string | null
+          city: string
+          state?: string
+          country_code?: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: number
+          project_title?: string
+          visit_date?: string
+          address_line_1?: string
+          address_line_2?: string | null
+          postcode?: string | null
+          city?: string
+          state?: string
+          country_code?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_visit_areas: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          site_visit_id: number
+          name: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          site_visit_id: number
+          name: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_visit_entries: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          site_visit_id: number
+          area_id: number
+          note_text: string
+          measurement_text: string | null
+          guide_key: string | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          site_visit_id: number
+          area_id: number
+          note_text: string
+          measurement_text?: string | null
+          guide_key?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          area_id?: number
+          note_text?: string
+          measurement_text?: string | null
+          guide_key?: string | null
+          sort_order?: number
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_visit_photos: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          site_visit_id: number
+          area_id: number
+          entry_id: number
+          storage_path: string
+          original_filename: string
+          mime_type: string
+          size_bytes: number
+          caption: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          site_visit_id: number
+          area_id: number
+          entry_id: number
+          storage_path: string
+          original_filename: string
+          mime_type: string
+          size_bytes: number
+          caption?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          caption?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_site_visit_guides: {
+        Row: {
+          guide_key: string
+          name_ms: string
+          description_ms: string
+          prompts_ms: Json
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          guide_key: string
+          name_ms: string
+          description_ms: string
+          prompts_ms: Json
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name_ms?: string
+          description_ms?: string
+          prompts_ms?: Json
           sort_order?: number
           is_active?: boolean
           updated_at?: string
