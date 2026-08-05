@@ -80,7 +80,7 @@ export function QuotationPrintPage({ quotationId }: { quotationId: string }) {
               <p className="text-2xl font-black tracking-tight text-amber-300">{brand}</p>
               {company.registration_no && <p className="mt-1 text-xs font-semibold text-slate-300">{company.registration_no}</p>}
               <p className="mt-3 max-w-md text-xs leading-5 text-slate-300">{companyAddress}</p>
-              <p className="mt-1 text-xs text-slate-300">{[company.phone, company.email].filter(Boolean).join(' · ')}</p>
+              {company.phone && <p className="mt-1 text-xs text-slate-300">{company.phone}</p>}
             </div>
             <div className="text-right"><p className="text-sm font-black tracking-[0.2em] text-amber-300">{english ? 'QUOTATION' : 'SEBUTHARGA'}</p><p className="mt-2 text-lg font-black">{formatQuotationNumber(quotation.quotation_no, quotation.revision_no)}</p><p className="mt-1 text-xs text-slate-300">{formatDate(quotation.quotation_date, english ? 'en-MY' : 'ms-MY')}</p></div>
           </div>
@@ -112,9 +112,8 @@ export function QuotationPrintPage({ quotationId }: { quotationId: string }) {
 
           <section className="ml-auto mt-5 w-full max-w-sm rounded-2xl bg-slate-950 p-5 text-white"><div className="flex items-center justify-between gap-4"><p className="text-sm font-bold text-slate-300">{english ? 'TOTAL' : 'JUMLAH KESELURUHAN'}</p><p className="text-2xl font-black text-amber-300">{formatMoney(Number(quotation.total_amount))}</p></div></section>
 
-          <section className="mt-7 grid grid-cols-2 gap-7 text-xs leading-5 text-slate-600">
-            <div><p className="font-black text-slate-950">{english ? 'Terms' : 'Terma'}</p><p className="mt-1">{english ? `This quotation is valid for ${quotation.validity_days} days from the quotation date.` : `Sebutharga ini sah selama ${quotation.validity_days} hari dari tarikh sebutharga.`}</p>{quotation.notes && <p className="mt-2 whitespace-pre-line">{quotation.notes}</p>}</div>
-            <div><p className="font-black text-slate-950">{english ? 'Payment details' : 'Maklumat bayaran'}</p>{company.bank_name && <p className="mt-1">{company.bank_name}</p>}{company.bank_account_name && <p>{company.bank_account_name}</p>}{company.bank_account_no && <p className="font-black text-slate-950">{company.bank_account_no}</p>}</div>
+          <section className="mt-7 text-xs leading-5 text-slate-600">
+            <p className="font-black text-slate-950">{english ? 'Terms' : 'Terma'}</p><p className="mt-1">{english ? `This quotation is valid for ${quotation.validity_days} days from the quotation date.` : `Sebutharga ini sah selama ${quotation.validity_days} hari dari tarikh sebutharga.`}</p>{quotation.notes && <p className="mt-2 whitespace-pre-line">{quotation.notes}</p>}
           </section>
 
         </div>

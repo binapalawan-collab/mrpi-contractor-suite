@@ -52,5 +52,5 @@
 - Workflow is `Draf` → `Dihantar` → `Diterima`; editing a sent quote starts a numbered revision, and an accepted quote is immutable at database level.
 - Each sent revision creates an immutable snapshot in the same transaction as its status change.
 - The printable A4 quotation is gold/white, supports BM/EN document labels, and can be saved as PDF through the device print flow.
-- Quotations do not include signature, stamp or customer-acceptance blocks.
+- Quotations do not include signature, stamp, customer-acceptance blocks, company email or bank/payment-account details.
 - WhatsApp output prepares a customer-facing summary; the detailed PDF is attached by the owner from the phone.
