@@ -1,4 +1,4 @@
-import { Bell, FolderKanban, Landmark } from 'lucide-react'
+import { Bell, Landmark } from 'lucide-react'
 import { useEffect } from 'react'
 import { Route, Switch, useLocation } from 'wouter'
 import { AuthProvider } from './auth/AuthProvider'
@@ -11,6 +11,8 @@ import { CompanyProfilePage } from './pages/CompanyProfilePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { MoreMenuPage } from './pages/MoreMenuPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { ProjectListPage } from './pages/ProjectListPage'
 import { QuotationEditorPage } from './pages/QuotationEditorPage'
 import { QuotationListPage } from './pages/QuotationListPage'
 import { QuotationPrintPage } from './pages/QuotationPrintPage'
@@ -48,7 +50,8 @@ function ProtectedRoutes() {
       <Route path="/sebutharga/:id/cetak">{({ id }) => <QuotationPrintPage quotationId={id} />}</Route>
       <Route path="/sebutharga/:id">{({ id }) => <QuotationEditorPage quotationId={id} />}</Route>
       <Route path="/sebutharga"><QuotationListPage /></Route>
-      <Route path="/projek"><PlaceholderPage title="Projek" description="Projek aktif, jadual bayaran, VO, invois dan kemajuan kerja akan dipusatkan di sini." milestone="Milestone 2" icon={FolderKanban} /></Route>
+      <Route path="/projek/:id">{({ id }) => <ProjectDetailPage projectId={id} />}</Route>
+      <Route path="/projek"><ProjectListPage /></Route>
       <Route path="/kewangan"><PlaceholderPage title="Kewangan" description="Invois, bayaran separa, peruntukan bayaran, resit dan penyata akaun akan dikendalikan di sini." milestone="Milestone 2" icon={Landmark} /></Route>
       <Route path="/katalog"><CatalogPage /></Route>
       <Route path="/notifikasi"><PlaceholderPage title="Notifikasi" description="Peringatan bayaran, dokumen belum lengkap dan tindakan projek akan dipaparkan di sini." milestone="Milestone 3" icon={Bell} /></Route>

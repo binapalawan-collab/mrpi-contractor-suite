@@ -465,6 +465,25 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
     }
   }
 
+  async function continueAsProject() {
+    if (!supabase || !company || !draft?.quotation_id) return
+    if (!window.confirm('Teruskan sebutharga diterima ini sebagai projek? Skop dan nilai kontrak asal akan dikunci sebagai baseline projek.')) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data, error: projectError } = await supabase.rpc('create_project_from_accepted_quotation', {
+        p_quotation_id: draft.quotation_id,
+      })
+      if (projectError) throw projectError
+      navigate(`/projek/${data.id}`)
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Projek tidak dapat dibina daripada sebutharga ini.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function openWhatsApp() {
     if (!draft) return
     const phone = whatsappNumber(draft.header.client_phone)
@@ -504,6 +523,7 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
         onSend={sendQuotation}
         onStartRevision={startRevision}
         onAccept={acceptQuotation}
+        onContinueAsProject={continueAsProject}
         onPrint={() => draft.quotation_id && navigate(`/sebutharga/${draft.quotation_id}/cetak`)}
         onWhatsApp={openWhatsApp}
       />

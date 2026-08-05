@@ -61,6 +61,7 @@ describe('QuotationComposer item recovery', () => {
       onSend={vi.fn(async () => undefined)}
       onStartRevision={vi.fn(async () => undefined)}
       onAccept={vi.fn(async () => undefined)}
+      onContinueAsProject={vi.fn(async () => undefined)}
       onPrint={vi.fn()}
       onWhatsApp={vi.fn()}
     />)
@@ -73,5 +74,40 @@ describe('QuotationComposer item recovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Batal' }))
     expect(readQuotationItemDraft('owner-1', 'visit:8')).toBeNull()
+  })
+
+  it('offers project conversion only after the quotation is accepted', () => {
+    const draft = createEmptyQuotationDraft()
+    draft.quotation_id = 23
+    draft.header.quotation_no = 'SH050826-01'
+    draft.status = 'accepted'
+    const onContinueAsProject = vi.fn(async () => undefined)
+
+    render(<QuotationComposer
+      draft={draft}
+      clients={[]}
+      categories={[]}
+      catalogItems={[]}
+      sourceAreas={[]}
+      sourceEntries={[]}
+      draftOwnerUserId="owner-1"
+      draftStorageId="quote:23"
+      editable={false}
+      busy={false}
+      autosaveNotice="Draf disimpan"
+      onChange={vi.fn()}
+      onBack={vi.fn()}
+      onSave={vi.fn(async () => undefined)}
+      onSend={vi.fn(async () => undefined)}
+      onStartRevision={vi.fn(async () => undefined)}
+      onAccept={vi.fn(async () => undefined)}
+      onContinueAsProject={onContinueAsProject}
+      onPrint={vi.fn()}
+      onWhatsApp={vi.fn()}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Teruskan Sebagai Projek' }))
+    expect(onContinueAsProject).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Tanda Diterima' })).not.toBeInTheDocument()
   })
 })

@@ -506,6 +506,142 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          quotation_id: number
+          quotation_snapshot_id: number
+          client_id: number
+          site_visit_id: number | null
+          project_no: string
+          project_name: string
+          quotation_no: string
+          quotation_revision_no: number
+          client_name: string
+          client_phone: string
+          client_email: string | null
+          address_line_1: string
+          address_line_2: string | null
+          postcode: string | null
+          city: string
+          state: string
+          country_code: string
+          contract_amount: number
+          status: string
+          planned_start_date: string | null
+          planned_end_date: string | null
+          actual_start_date: string | null
+          work_completed_at: string | null
+          handed_over_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          quotation_id: number
+          quotation_snapshot_id: number
+          client_id: number
+          site_visit_id?: number | null
+          project_no: string
+          project_name: string
+          quotation_no: string
+          quotation_revision_no: number
+          client_name: string
+          client_phone: string
+          client_email?: string | null
+          address_line_1: string
+          address_line_2?: string | null
+          postcode?: string | null
+          city: string
+          state: string
+          country_code?: string
+          contract_amount: number
+          status?: string
+          planned_start_date?: string | null
+          planned_end_date?: string | null
+          actual_start_date?: string | null
+          work_completed_at?: string | null
+          handed_over_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          project_name?: string
+          status?: string
+          planned_start_date?: string | null
+          planned_end_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      project_sections: {
+        Row: {
+          id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          source_quotation_section_id: number
+          name: string
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          source_quotation_section_id: number
+          name: string
+          sort_order?: number
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
+      project_items: {
+        Row: {
+          id: number
+          project_id: number
+          section_id: number
+          company_id: number
+          owner_user_id: string
+          source_quotation_item_id: number
+          item_name: string
+          description: string
+          measurement_text: string | null
+          calculation_method: string
+          unit: string
+          quantity: number
+          rate: number
+          amount: number
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          section_id: number
+          company_id: number
+          owner_user_id: string
+          source_quotation_item_id: number
+          item_name: string
+          description: string
+          measurement_text?: string | null
+          calculation_method: string
+          unit: string
+          quantity: number
+          rate: number
+          amount: number
+          sort_order?: number
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
       site_visits: {
         Row: {
           id: number
@@ -704,6 +840,12 @@ export type Database = {
     }
     Views: Record<string, never>
     Functions: {
+      create_project_from_accepted_quotation: {
+        Args: {
+          p_quotation_id: number
+        }
+        Returns: Database['public']['Tables']['projects']['Row']
+      }
       send_quotation_revision: {
         Args: {
           p_quotation_id: number

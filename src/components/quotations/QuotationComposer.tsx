@@ -7,6 +7,7 @@ import {
   ClipboardPenLine,
   FileCheck2,
   FileDown,
+  FolderKanban,
   History,
   MapPin,
   MessageCircle,
@@ -72,6 +73,7 @@ type Props = {
   onSend: () => Promise<void>
   onStartRevision: () => Promise<void>
   onAccept: () => Promise<void>
+  onContinueAsProject: () => Promise<void>
   onPrint: () => void
   onWhatsApp: () => void
 }
@@ -94,6 +96,7 @@ export function QuotationComposer({
   onSend,
   onStartRevision,
   onAccept,
+  onContinueAsProject,
   onPrint,
   onWhatsApp,
 }: Props) {
@@ -408,6 +411,7 @@ export function QuotationComposer({
         {editable && <button type="button" disabled={busy || itemCount === 0} onClick={() => void onSend()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-40"><Send className="h-5 w-5" />Tanda Dihantar</button>}
         {draft.status === 'sent' && <button type="button" disabled={busy} onClick={() => void onStartRevision()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 text-sm font-black text-blue-900 disabled:opacity-60"><History className="h-5 w-5" />Buat Revision</button>}
         {draft.status === 'sent' && <button type="button" disabled={busy} onClick={() => void onAccept()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"><CheckCircle2 className="h-5 w-5" />Tanda Diterima</button>}
+        {draft.status === 'accepted' && <button type="button" disabled={busy} onClick={() => void onContinueAsProject()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"><FolderKanban className="h-5 w-5" />Teruskan Sebagai Projek</button>}
         <button type="button" disabled={!draft.quotation_id || busy} onClick={onPrint} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-40"><FileDown className="h-5 w-5" />PDF / Cetak</button>
         <button type="button" disabled={!draft.header.client_phone || busy} onClick={onWhatsApp} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-40"><MessageCircle className="h-5 w-5" />WhatsApp</button>
       </section>

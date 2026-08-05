@@ -12,7 +12,7 @@
 ## Milestones
 
 1. Foundation, authentication, company profile, catalog, site-visit intake and quotation.
-2. Projects, agreements, payment schedules, variation orders, invoices, payments, receipts and finance.
+2. Projects, variation orders, invoices, payments, receipts and finance. Agreements, deposits and payment schedules are deferred until explicitly agreed.
 3. Site operations, photos, defects, handover, warranty, notifications and dashboard completion.
 
 ## Agreed main pages
@@ -54,3 +54,14 @@
 - The printable A4 quotation is gold/white, supports BM/EN document labels, and can be saved as PDF through the device print flow.
 - Quotations do not include signature, stamp, customer-acceptance blocks, company email or bank/payment-account details.
 - WhatsApp output prepares a customer-facing summary; the detailed PDF is attached by the owner from the phone.
+
+## Projek checkpoint
+
+- A project can only be created from an accepted quotation through the exact action `Teruskan Sebagai Projek`; there is no independent `Projek Baharu` action.
+- Conversion is idempotent: one accepted quotation can produce only one project.
+- Project numbers use an owner-scoped `PRJ-YYYY-###` sequence.
+- Client, address, accepted quotation revision, scope and contract value are copied as an immutable baseline.
+- The owner may edit only the operational project name and planned start/end dates.
+- Status moves one way through `Persediaan` → `Dijadualkan` → `Aktif` → `Siap Kerja` → `Diserahkan`; system dates are recorded automatically.
+- Later scope or value changes belong in Variation Orders and never overwrite the accepted baseline.
+- Agreement, deposit and payment-schedule workflows are not included in the current Project module.
