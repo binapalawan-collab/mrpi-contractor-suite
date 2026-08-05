@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Client, SiteVisit, SiteVisitArea, SiteVisitGuide } from '../../lib/siteVisit'
 import { VisitWorkspace } from './VisitWorkspace'
 
@@ -58,8 +58,10 @@ const guide: SiteVisitGuide = {
 }
 
 describe('VisitWorkspace', () => {
+  beforeEach(() => localStorage.clear())
+
   it('keeps the site workflow free-text, optional and price-free', () => {
-    render(<VisitWorkspace visit={visit} client={client} areas={[area]} entries={[]} photos={[]} guides={[guide]} photoUrls={new Map()} busy={false} onBack={() => undefined} onEditVisit={() => undefined} onAddArea={vi.fn()} onRenameArea={vi.fn()} onSaveEntry={vi.fn()} onSetEntryArchived={vi.fn()} onRemovePhoto={vi.fn()} onSetReady={vi.fn()} />)
+    render(<VisitWorkspace visit={visit} client={client} areas={[area]} entries={[]} photos={[]} guides={[guide]} photoUrls={new Map()} busy={false} onBack={() => undefined} onEditVisit={() => undefined} onAddArea={vi.fn()} onRenameArea={vi.fn()} onSaveEntry={vi.fn()} onSetEntryArchived={vi.fn()} onRemovePhoto={vi.fn()} onSetStatus={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Catatan/ }))
     expect(screen.getByPlaceholderText('Contoh: Porch nak buat lantai imprint 10 x 10')).toBeInTheDocument()
@@ -71,5 +73,29 @@ describe('VisitWorkspace', () => {
     fireEvent.click(dialog.getByRole('button', { name: 'Porch' }))
     expect(dialog.getByText('Panjang dan lebar')).toBeInTheDocument()
     expect(dialog.getByText(/tidak menambah item atau harga/)).toBeInTheDocument()
+  })
+
+  it('opens the rear camera directly and keeps gallery selection separate', () => {
+    render(<VisitWorkspace visit={visit} client={client} areas={[area]} entries={[]} photos={[]} guides={[guide]} photoUrls={new Map()} busy={false} onBack={() => undefined} onEditVisit={() => undefined} onAddArea={vi.fn()} onRenameArea={vi.fn()} onSaveEntry={vi.fn()} onSetEntryArchived={vi.fn()} onRemovePhoto={vi.fn()} onSetStatus={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Catatan/ }))
+    expect(screen.getByLabelText('Ambil gambar dengan kamera')).toHaveAttribute('capture', 'environment')
+    expect(screen.getByLabelText('Ambil gambar dengan kamera')).not.toHaveAttribute('multiple')
+    expect(screen.getByLabelText('Pilih gambar dari galeri')).toHaveAttribute('multiple')
+  })
+
+  it('restores an unfinished note after the workspace is recreated', () => {
+    const props = { visit, client, areas: [area], entries: [], photos: [], guides: [guide], photoUrls: new Map<number, string>(), busy: false, onBack: () => undefined, onEditVisit: () => undefined, onAddArea: vi.fn(), onRenameArea: vi.fn(), onSaveEntry: vi.fn(), onSetEntryArchived: vi.fn(), onRemovePhoto: vi.fn(), onSetStatus: vi.fn() }
+    const firstRender = render(<VisitWorkspace {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Catatan/ }))
+    fireEvent.change(screen.getByPlaceholderText('Contoh: Porch nak buat lantai imprint 10 x 10'), { target: { value: 'Sambung awning hingga hujung porch' } })
+    fireEvent.click(screen.getByLabelText(/Perlu Pengesahan/))
+    firstRender.unmount()
+
+    render(<VisitWorkspace {...props} />)
+    expect(screen.getByPlaceholderText('Contoh: Porch nak buat lantai imprint 10 x 10')).toHaveValue('Sambung awning hingga hujung porch')
+    expect(screen.getByLabelText(/Perlu Pengesahan/)).toBeChecked()
+    expect(screen.getByText(/Draf catatan dipulihkan/)).toBeInTheDocument()
   })
 })

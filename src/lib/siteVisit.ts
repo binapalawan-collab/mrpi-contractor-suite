@@ -24,6 +24,7 @@ export type EntryFormValue = {
   note_text: string
   measurement_text: string
   guide_key: string
+  needs_confirmation: boolean
 }
 
 export const defaultProjectTitle = 'Cadangan Kerja Ubah Suai Rumah'
@@ -157,6 +158,7 @@ export function formatVisitDate(value: string) {
 }
 
 export function visitStatusLabel(status: string) {
+  if (status === 'completed') return 'Site visit selesai'
   if (status === 'ready_for_quote') return 'Sedia untuk sebutharga'
   if (status === 'converted') return 'Telah jadi sebutharga'
   if (status === 'archived') return 'Diarkibkan'

@@ -30,8 +30,13 @@
 
 - Site notes are grouped by user-created `Kawasan kerja` such as Porch, Dapur or Bilik Air 1.
 - The main input is free text; measurement text and photos are optional.
+- Unsaved customer details and note composers autosave on the device and reopen after an app switch or page reload.
+- Draft photos are retained locally until their private upload succeeds; weak connectivity must not discard the note.
+- The camera action opens the phone's rear camera directly, with a separate gallery action.
 - Prices never appear during a site visit.
 - Voice input is not included.
 - Twelve common renovation guides appear only when the user requests one.
 - Guides are reminders only and never create catalog or quotation items automatically.
+- A note can be marked `Perlu Pengesahan`; the flag never blocks quotation preparation.
+- Workflow is explicitly `Draf` → `Selesai Site Visit` → `Sediakan Sebutharga`.
 - Photos are stored in a private Supabase bucket under the authenticated owner path.

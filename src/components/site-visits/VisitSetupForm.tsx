@@ -1,5 +1,5 @@
 import { ArrowLeft, CalendarDays, MapPin, Play, Save, UserRound } from 'lucide-react'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   isValidPhone,
   lookupJohorPostcode,
@@ -7,20 +7,54 @@ import {
   type Client,
   type VisitFormValue,
 } from '../../lib/siteVisit'
+import {
+  clearVisitSetupDraft,
+  readVisitSetupDraft,
+  saveVisitSetupDraft,
+} from '../../lib/siteVisitDrafts'
 
 type Props = {
   initialValue: VisitFormValue
   clients: Client[]
   editing: boolean
+  draftOwnerId: string
+  draftVisitId: number | null
   onCancel: () => void
   onSubmit: (value: VisitFormValue) => Promise<void>
 }
 
-export function VisitSetupForm({ initialValue, clients, editing, onCancel, onSubmit }: Props) {
-  const [form, setForm] = useState(initialValue)
+export function VisitSetupForm({ initialValue, clients, editing, draftOwnerId, draftVisitId, onCancel, onSubmit }: Props) {
+  const restoredDraft = readVisitSetupDraft(draftOwnerId, draftVisitId)
+  const [form, setForm] = useState(restoredDraft?.value ?? initialValue)
+  const [draftWasRestored] = useState(Boolean(restoredDraft))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [postcodeNotice, setPostcodeNotice] = useState('')
+  const [draftSavedAt, setDraftSavedAt] = useState(restoredDraft?.updated_at ?? '')
+  const formRef = useRef(form)
+
+  useEffect(() => {
+    formRef.current = form
+    const updatedAt = saveVisitSetupDraft(draftOwnerId, draftVisitId, form)
+    if (updatedAt) setDraftSavedAt(updatedAt)
+  }, [draftOwnerId, draftVisitId, form])
+
+  useEffect(() => {
+    function flushDraft() {
+      saveVisitSetupDraft(draftOwnerId, draftVisitId, formRef.current)
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden') flushDraft()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('pagehide', flushDraft)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('pagehide', flushDraft)
+    }
+  }, [draftOwnerId, draftVisitId])
 
   function update<K extends keyof VisitFormValue>(key: K, value: VisitFormValue[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -69,6 +103,7 @@ export function VisitSetupForm({ initialValue, clients, editing, onCancel, onSub
     try {
       setSaving(true)
       await onSubmit(form)
+      clearVisitSetupDraft(draftOwnerId, draftVisitId)
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Lawatan tidak dapat disimpan.')
     } finally {
@@ -90,6 +125,10 @@ export function VisitSetupForm({ initialValue, clients, editing, onCancel, onSub
       </header>
 
       {error && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
+
+      <p role="status" className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-800">
+        {draftWasRestored ? 'Draf sebelumnya dipulihkan. ' : ''}Maklumat disimpan automatik pada peranti{draftSavedAt ? ` · ${new Date(draftSavedAt).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}` : ''}.
+      </p>
 
       <FormSection icon={<UserRound />} title="Pelanggan" description="Pelanggan lama akan dikenal pasti melalui nombor telefon.">
         <div className="grid gap-4 sm:grid-cols-2">

@@ -388,6 +388,7 @@ export type Database = {
           note_text: string
           measurement_text: string | null
           guide_key: string | null
+          needs_confirmation: boolean
           sort_order: number
           is_active: boolean
           created_at: string
@@ -402,6 +403,7 @@ export type Database = {
           note_text: string
           measurement_text?: string | null
           guide_key?: string | null
+          needs_confirmation?: boolean
           sort_order?: number
           is_active?: boolean
           created_at?: string
@@ -412,6 +414,7 @@ export type Database = {
           note_text?: string
           measurement_text?: string | null
           guide_key?: string | null
+          needs_confirmation?: boolean
           sort_order?: number
           is_active?: boolean
           updated_at?: string

@@ -31,9 +31,15 @@ import {
   type SiteVisitPhoto,
   type VisitFormValue,
 } from '../lib/siteVisit'
+import {
+  clearSiteVisitResume,
+  readSiteVisitResume,
+  saveSiteVisitResume,
+} from '../lib/siteVisitDrafts'
 import { supabase } from '../lib/supabase'
 
 type PageMode = 'list' | 'setup' | 'workspace'
+type VisitWorkflowStatus = 'draft' | 'completed' | 'ready_for_quote'
 
 export function SiteVisitPage() {
   const { user } = useAuth()
@@ -91,9 +97,48 @@ export function SiteVisitPage() {
       const firstError = clientResult.error ?? visitResult.error ?? guideResult.error
       if (firstError) setError(firstError.message)
       else {
-        setClients(clientResult.data ?? [])
-        setVisits(visitResult.data ?? [])
+        const nextClients = clientResult.data ?? []
+        const nextVisits = visitResult.data ?? []
+        setClients(nextClients)
+        setVisits(nextVisits)
         setGuides(guideResult.data ?? [])
+
+        const resume = readSiteVisitResume(currentUser.id)
+        if (resume?.mode === 'setup') {
+          const visitToEdit = resume.visit_id === null
+            ? null
+            : nextVisits.find((visit) => visit.id === resume.visit_id) ?? null
+          if (resume.visit_id === null || visitToEdit) {
+            setSetupVisit(visitToEdit)
+            setMode('setup')
+          } else {
+            clearSiteVisitResume(currentUser.id)
+          }
+        } else if (resume?.mode === 'workspace') {
+          const visitToResume = nextVisits.find((visit) => visit.id === resume.visit_id)
+          if (visitToResume) {
+            const [areaResult, entryResult, photoResult] = await Promise.all([
+              client.from('site_visit_areas').select('*').eq('company_id', company.id).eq('site_visit_id', visitToResume.id).order('sort_order').order('id'),
+              client.from('site_visit_entries').select('*').eq('company_id', company.id).eq('site_visit_id', visitToResume.id).order('sort_order').order('id'),
+              client.from('site_visit_photos').select('*').eq('company_id', company.id).eq('site_visit_id', visitToResume.id).order('sort_order').order('id'),
+            ])
+            if (!mounted) return
+            const workspaceError = areaResult.error ?? entryResult.error ?? photoResult.error
+            if (workspaceError) {
+              setError(workspaceError.message)
+            } else {
+              setActiveVisit(visitToResume)
+              setAreas(areaResult.data ?? [])
+              setEntries(entryResult.data ?? [])
+              setPhotos(photoResult.data ?? [])
+              await refreshSignedUrls(photoResult.data ?? [])
+              setMode('workspace')
+              setNotice('Lawatan dan draf terakhir dipulihkan.')
+            }
+          } else {
+            clearSiteVisitResume(currentUser.id)
+          }
+        }
       }
       setLoading(false)
     }
@@ -105,6 +150,7 @@ export function SiteVisitPage() {
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients])
   const activeClient = activeVisit ? clientMap.get(activeVisit.client_id) ?? null : null
   const draftCount = visits.filter((visit) => visit.status === 'draft').length
+  const completedCount = visits.filter((visit) => visit.status === 'completed').length
   const readyCount = visits.filter((visit) => visit.status === 'ready_for_quote').length
 
   function clearMessages() {
@@ -113,8 +159,15 @@ export function SiteVisitPage() {
   }
 
   async function openVisit(visit: SiteVisit) {
-    if (!supabase || !companyId) return
+    if (!supabase || !companyId || !user) return
     clearMessages()
+    saveSiteVisitResume(user.id, {
+      mode: 'workspace',
+      visit_id: visit.id,
+      selected_area_id: null,
+      entry_open: false,
+      entry_id: null,
+    })
     setBusy(true)
     setActiveVisit(visit)
     setMode('workspace')
@@ -227,6 +280,7 @@ export function SiteVisitPage() {
         if (visitError) throw visitError
         setVisits((current) => current.map((visit) => visit.id === data.id ? data : visit))
         setActiveVisit(data)
+        saveSiteVisitResume(user.id, { mode: 'workspace', visit_id: data.id, selected_area_id: null, entry_open: false, entry_id: null })
         setNotice('Maklumat lawatan berjaya dikemas kini.')
         setMode('workspace')
       } else {
@@ -238,6 +292,7 @@ export function SiteVisitPage() {
         if (visitError) throw visitError
         setVisits((current) => [data, ...current])
         setActiveVisit(data)
+        saveSiteVisitResume(user.id, { mode: 'workspace', visit_id: data.id, selected_area_id: null, entry_open: false, entry_id: null })
         setAreas([])
         setEntries([])
         setPhotos([])
@@ -308,6 +363,7 @@ export function SiteVisitPage() {
         note_text: value.note_text.trim(),
         measurement_text: nullableTrimmed(value.measurement_text),
         guide_key: nullableTrimmed(value.guide_key),
+        needs_confirmation: value.needs_confirmation,
       }
       let savedEntry: SiteVisitEntry
 
@@ -353,12 +409,16 @@ export function SiteVisitPage() {
           setPhotos(nextPhotos)
           await refreshSignedUrls(nextPhotos)
           setNotice(entry ? 'Catatan dan gambar berjaya dikemas kini.' : 'Catatan dan gambar berjaya disimpan.')
+          return { entry: savedEntry, photosSaved: true as const }
         } catch (photoUploadError) {
           if (uploadedPaths.length > 0) await supabase.storage.from(siteVisitPhotoBucket).remove(uploadedPaths)
-          setNotice(`Catatan telah disimpan, tetapi gambar gagal dimuat naik: ${photoUploadError instanceof Error ? photoUploadError.message : 'ralat tidak diketahui'}`)
+          const photoError = photoUploadError instanceof Error ? photoUploadError.message : 'ralat tidak diketahui'
+          setNotice(`Catatan telah disimpan, tetapi gambar kekal dalam draf peranti: ${photoError}`)
+          return { entry: savedEntry, photosSaved: false as const, photoError }
         }
       } else {
         setNotice(entry ? 'Catatan berjaya dikemas kini.' : 'Catatan berjaya disimpan.')
+        return { entry: savedEntry, photosSaved: true as const }
       }
     } finally {
       setBusy(false)
@@ -412,21 +472,24 @@ export function SiteVisitPage() {
     }
   }
 
-  async function setReady(ready: boolean) {
+  async function setVisitStatus(status: VisitWorkflowStatus) {
     if (!supabase || !companyId || !activeVisit) return
-    if (ready) {
+    if (status !== 'draft') {
       if (!entries.some((entry) => entry.is_active)) {
-        setError('Tambah sekurang-kurangnya satu catatan sebelum menandakan lawatan sebagai sedia.')
+        setError('Tambah sekurang-kurangnya satu catatan sebelum menyiapkan lawatan.')
         return
       }
-      if (!window.confirm('Tandakan lawatan ini sebagai sedia untuk menyediakan sebutharga?')) return
+      const confirmation = status === 'completed'
+        ? 'Tandakan kerja lawatan tapak ini sebagai selesai?'
+        : 'Sediakan rekod lawatan ini untuk aliran Sebutharga Baru?'
+      if (!window.confirm(confirmation)) return
     }
     setBusy(true)
     clearMessages()
     try {
       const { data, error: visitError } = await supabase
         .from('site_visits')
-        .update({ status: ready ? 'ready_for_quote' : 'draft' })
+        .update({ status })
         .eq('id', activeVisit.id)
         .eq('company_id', companyId)
         .select('*')
@@ -434,7 +497,12 @@ export function SiteVisitPage() {
       if (visitError) throw visitError
       setActiveVisit(data)
       setVisits((current) => current.map((visit) => visit.id === data.id ? data : visit))
-      setNotice(ready ? 'Lawatan sedia untuk langkah Sebutharga Baru.' : 'Lawatan ditandakan sebagai draf semula.')
+      const statusNotice = status === 'completed'
+        ? 'Site visit selesai. Semak catatan sebelum menyediakan sebutharga.'
+        : status === 'ready_for_quote'
+          ? 'Lawatan sedia untuk langkah Sebutharga Baru.'
+          : 'Lawatan dibuka semula sebagai draf.'
+      setNotice(statusNotice)
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Status lawatan tidak dapat dikemas kini.')
     } finally {
@@ -453,11 +521,20 @@ export function SiteVisitPage() {
   if (mode === 'setup') {
     const setupClient = setupVisit ? clientMap.get(setupVisit.client_id) : null
     const initialValue = setupVisit && setupClient ? visitFormFromRows(setupVisit, setupClient) : emptyVisitForm()
-    return <><VisitSetupForm key={setupVisit?.id ?? 'new'} initialValue={initialValue} clients={clients} editing={Boolean(setupVisit)} onCancel={() => { setMode(setupVisit ? 'workspace' : 'list'); setSetupVisit(null) }} onSubmit={saveVisit} /></>
+    return <><VisitSetupForm key={setupVisit?.id ?? 'new'} initialValue={initialValue} clients={clients} editing={Boolean(setupVisit)} draftOwnerId={user!.id} draftVisitId={setupVisit?.id ?? null} onCancel={() => {
+      if (setupVisit) {
+        saveSiteVisitResume(user!.id, { mode: 'workspace', visit_id: setupVisit.id, selected_area_id: null, entry_open: false, entry_id: null })
+        setMode('workspace')
+      } else {
+        clearSiteVisitResume(user!.id)
+        setMode('list')
+      }
+      setSetupVisit(null)
+    }} onSubmit={saveVisit} /></>
   }
 
   if (mode === 'workspace' && activeVisit && activeClient) {
-    return <>{messagePanels}<VisitWorkspace visit={activeVisit} client={activeClient} areas={areas} entries={entries} photos={photos} guides={guides} photoUrls={photoUrls} busy={busy} onBack={() => { clearMessages(); setMode('list'); setActiveVisit(null) }} onEditVisit={() => { clearMessages(); setSetupVisit(activeVisit); setMode('setup') }} onAddArea={addArea} onRenameArea={renameArea} onSaveEntry={saveEntry} onSetEntryArchived={setEntryArchived} onRemovePhoto={removePhoto} onSetReady={setReady} /></>
+    return <>{messagePanels}<VisitWorkspace visit={activeVisit} client={activeClient} areas={areas} entries={entries} photos={photos} guides={guides} photoUrls={photoUrls} busy={busy} onBack={() => { clearMessages(); clearSiteVisitResume(user!.id); setMode('list'); setActiveVisit(null) }} onEditVisit={() => { clearMessages(); saveSiteVisitResume(user!.id, { mode: 'setup', visit_id: activeVisit.id }); setSetupVisit(activeVisit); setMode('setup') }} onAddArea={addArea} onRenameArea={renameArea} onSaveEntry={saveEntry} onSetEntryArchived={setEntryArchived} onRemovePhoto={removePhoto} onSetStatus={setVisitStatus} /></>
   }
 
   return (
@@ -469,13 +546,14 @@ export function SiteVisitPage() {
           <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Lawatan Tapak</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Catatan bebas mengikut kawasan kerja. Tiada harga dan tiada borang teknikal panjang ketika bersama pelanggan.</p>
         </div>
-        <button type="button" onClick={() => { clearMessages(); setSetupVisit(null); setMode('setup') }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-slate-950 shadow-lg shadow-amber-200/60">
+        <button type="button" onClick={() => { clearMessages(); saveSiteVisitResume(user!.id, { mode: 'setup', visit_id: null }); setSetupVisit(null); setMode('setup') }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-slate-950 shadow-lg shadow-amber-200/60">
           <Plus className="h-5 w-5" />Lawatan Baharu
         </button>
       </header>
 
-      <section className="grid grid-cols-2 gap-3">
+      <section className="grid grid-cols-3 gap-3">
         <SummaryCard value={draftCount} label="Draf lawatan" tone="bg-amber-100 text-amber-800" />
+        <SummaryCard value={completedCount} label="Site visit selesai" tone="bg-blue-100 text-blue-800" />
         <SummaryCard value={readyCount} label="Sedia untuk quote" tone="bg-emerald-100 text-emerald-800" />
       </section>
 
