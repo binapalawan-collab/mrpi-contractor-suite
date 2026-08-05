@@ -1,10 +1,27 @@
-import { Building2, CheckCircle2, Landmark, MapPin, Save, ShieldCheck } from 'lucide-react'
+import { Building2, CheckCircle2, FileImage, Landmark, MapPin, PenTool, Save, ShieldCheck, Stamp, Trash2, Upload } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
+import {
+  buildCompanyAssetPath,
+  companyAssetBucket,
+  companyAssetLabel,
+  validateCompanyAsset,
+  type CompanyAssetKind,
+} from '../lib/companyAssets'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
 type CompanyRow = Database['public']['Tables']['companies']['Row']
+
+type CompanyAssetPaths = {
+  signature_path: string | null
+  stamp_path: string | null
+}
+
+type CompanyAssetUrls = {
+  signature: string | null
+  stamp: string | null
+}
 
 type CompanyForm = {
   legal_name: string
@@ -54,6 +71,16 @@ const emptyForm: CompanyForm = {
   bank_account_no: '',
 }
 
+const emptyAssetPaths: CompanyAssetPaths = {
+  signature_path: null,
+  stamp_path: null,
+}
+
+const emptyAssetUrls: CompanyAssetUrls = {
+  signature: null,
+  stamp: null,
+}
+
 function toForm(row: CompanyRow): CompanyForm {
   return Object.fromEntries(
     Object.keys(emptyForm).map((key) => [key, row[key as keyof CompanyForm] ?? '']),
@@ -65,9 +92,28 @@ function nullable(value: string) {
   return trimmed || null
 }
 
+async function createAssetPreviewUrls(paths: CompanyAssetPaths) {
+  if (!supabase) return emptyAssetUrls
+  const requestedPaths = [paths.signature_path, paths.stamp_path].filter((path): path is string => Boolean(path))
+  if (!requestedPaths.length) return emptyAssetUrls
+
+  const { data, error } = await supabase.storage
+    .from(companyAssetBucket)
+    .createSignedUrls(requestedPaths, 60 * 60 * 6)
+  if (error) throw error
+  const urlByPath = new Map(data.map((item) => [item.path, item.signedUrl]))
+  return {
+    signature: paths.signature_path ? urlByPath.get(paths.signature_path) ?? null : null,
+    stamp: paths.stamp_path ? urlByPath.get(paths.stamp_path) ?? null : null,
+  }
+}
+
 export function CompanyProfilePage() {
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [form, setForm] = useState<CompanyForm>(emptyForm)
+  const [assetPaths, setAssetPaths] = useState<CompanyAssetPaths>(emptyAssetPaths)
+  const [assetUrls, setAssetUrls] = useState<CompanyAssetUrls>(emptyAssetUrls)
+  const [assetBusy, setAssetBusy] = useState<CompanyAssetKind | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -78,23 +124,36 @@ export function CompanyProfilePage() {
     if (!supabase || !user) return
     let mounted = true
 
-    void supabase
-      .from('companies')
-      .select('*')
-      .eq('owner_user_id', user.id)
-      .maybeSingle()
-      .then(({ data, error: loadError }) => {
-        if (!mounted) return
-        if (loadError) {
-          setError(loadError.message)
-        } else if (data) {
-          setCompanyId(data.id)
-          setForm(toForm(data))
-        } else {
-          setForm((current) => ({ ...current, email: user.email ?? '' }))
+    async function loadProfile() {
+      const { data, error: loadError } = await supabase!
+        .from('companies')
+        .select('*')
+        .eq('owner_user_id', user!.id)
+        .maybeSingle()
+      if (!mounted) return
+      if (loadError) {
+        setError(loadError.message)
+      } else if (data) {
+        const nextAssetPaths = {
+          signature_path: data.signature_path,
+          stamp_path: data.stamp_path,
         }
-        setLoading(false)
-      })
+        setCompanyId(data.id)
+        setForm(toForm(data))
+        setAssetPaths(nextAssetPaths)
+        try {
+          const previewUrls = await createAssetPreviewUrls(nextAssetPaths)
+          if (mounted) setAssetUrls(previewUrls)
+        } catch (previewError) {
+          if (mounted) setError(previewError instanceof Error ? previewError.message : 'Pratonton aset syarikat tidak dapat dibuka.')
+        }
+      } else {
+        setForm((current) => ({ ...current, email: user!.email ?? '' }))
+      }
+      if (mounted) setLoading(false)
+    }
+
+    void loadProfile()
 
     return () => {
       mounted = false
@@ -108,6 +167,101 @@ export function CompanyProfilePage() {
 
   function update<K extends keyof CompanyForm>(key: K, value: CompanyForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  async function uploadAsset(kind: CompanyAssetKind, file: File) {
+    if (!supabase || !user) return
+    if (!companyId) {
+      setError('Simpan Profil Syarikat dahulu sebelum memuat naik aset.')
+      return
+    }
+    const validationError = validateCompanyAsset(file)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setAssetBusy(kind)
+    setError('')
+    setNotice('')
+    const label = companyAssetLabel(kind)
+    const previousPath = kind === 'signature' ? assetPaths.signature_path : assetPaths.stamp_path
+    const nextPath = buildCompanyAssetPath(user.id, companyId, kind, file)
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(companyAssetBucket)
+        .upload(nextPath, file, { cacheControl: '3600', contentType: file.type, upsert: false })
+      if (uploadError) throw uploadError
+
+      const pathUpdate = kind === 'signature'
+        ? { signature_path: nextPath }
+        : { stamp_path: nextPath }
+      const { error: updateError } = await supabase
+        .from('companies')
+        .update(pathUpdate)
+        .eq('id', companyId)
+        .eq('owner_user_id', user.id)
+      if (updateError) {
+        await supabase.storage.from(companyAssetBucket).remove([nextPath])
+        throw updateError
+      }
+
+      const nextAssetPaths = kind === 'signature'
+        ? { ...assetPaths, signature_path: nextPath }
+        : { ...assetPaths, stamp_path: nextPath }
+      setAssetPaths(nextAssetPaths)
+      const warnings: string[] = []
+      try {
+        setAssetUrls(await createAssetPreviewUrls(nextAssetPaths))
+      } catch {
+        warnings.push('pratonton akan dicuba semula apabila halaman dibuka semula')
+      }
+
+      if (previousPath && previousPath !== nextPath) {
+        const { error: removeOldError } = await supabase.storage.from(companyAssetBucket).remove([previousPath])
+        if (removeOldError) warnings.push('fail lama tidak dapat dibersihkan sekarang')
+      }
+      setNotice(`${label} berjaya disimpan${warnings.length ? `; ${warnings.join(' dan ')}` : ''}.`)
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : `${label} tidak dapat dimuat naik.`)
+    } finally {
+      setAssetBusy(null)
+    }
+  }
+
+  async function removeAsset(kind: CompanyAssetKind) {
+    if (!supabase || !user || !companyId) return
+    const currentPath = kind === 'signature' ? assetPaths.signature_path : assetPaths.stamp_path
+    if (!currentPath || !window.confirm(`Buang ${companyAssetLabel(kind).toLocaleLowerCase('ms-MY')} ini?`)) return
+
+    setAssetBusy(kind)
+    setError('')
+    setNotice('')
+    const label = companyAssetLabel(kind)
+    try {
+      const pathUpdate = kind === 'signature'
+        ? { signature_path: null }
+        : { stamp_path: null }
+      const { error: updateError } = await supabase
+        .from('companies')
+        .update(pathUpdate)
+        .eq('id', companyId)
+        .eq('owner_user_id', user.id)
+      if (updateError) throw updateError
+
+      setAssetPaths((current) => kind === 'signature'
+        ? { ...current, signature_path: null }
+        : { ...current, stamp_path: null })
+      setAssetUrls((current) => ({ ...current, [kind]: null }))
+      const { error: storageError } = await supabase.storage.from(companyAssetBucket).remove([currentPath])
+      setNotice(storageError
+        ? `${label} dibuang daripada profil, tetapi fail private lama tidak dapat dibersihkan sekarang.`
+        : `${label} berjaya dibuang.`)
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : `${label} tidak dapat dibuang.`)
+    } finally {
+      setAssetBusy(null)
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -236,8 +390,38 @@ export function CompanyProfilePage() {
         </div>
       </ProfileSection>
 
+      <ProfileSection
+        icon={<FileImage />}
+        title="Tandatangan & cop"
+        description="Pilihan. Disimpan secara private untuk dokumen yang memerlukannya; tidak dipaparkan pada sebutharga."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CompanyAssetCard
+            kind="signature"
+            path={assetPaths.signature_path}
+            previewUrl={assetUrls.signature}
+            busy={assetBusy === 'signature'}
+            disabled={!companyId || assetBusy !== null}
+            profileSaved={Boolean(companyId)}
+            onSelect={(file) => void uploadAsset('signature', file)}
+            onRemove={() => void removeAsset('signature')}
+          />
+          <CompanyAssetCard
+            kind="stamp"
+            path={assetPaths.stamp_path}
+            previewUrl={assetUrls.stamp}
+            busy={assetBusy === 'stamp'}
+            disabled={!companyId || assetBusy !== null}
+            profileSaved={Boolean(companyId)}
+            onSelect={(file) => void uploadAsset('stamp', file)}
+            onRemove={() => void removeAsset('stamp')}
+          />
+        </div>
+        <p className="mt-4 text-xs leading-5 text-slate-500">PNG berlatar lutsinar disyorkan. Format JPG, PNG atau WebP sehingga 5 MB diterima.</p>
+      </ProfileSection>
+
       <div className="sticky bottom-20 z-10 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl shadow-slate-300/60 backdrop-blur lg:bottom-4">
-        <button type="submit" disabled={saving} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-60 sm:ml-auto sm:w-auto">
+        <button type="submit" disabled={saving || assetBusy !== null} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-60 sm:ml-auto sm:w-auto">
           <Save className="h-5 w-5" />
           {saving ? 'Menyimpan...' : 'Simpan Profil'}
         </button>
@@ -258,6 +442,86 @@ function ProfileSection({ icon, title, description, children }: { icon: ReactNod
       </div>
       {children}
     </section>
+  )
+}
+
+function CompanyAssetCard({
+  kind,
+  path,
+  previewUrl,
+  busy,
+  disabled,
+  profileSaved,
+  onSelect,
+  onRemove,
+}: {
+  kind: CompanyAssetKind
+  path: string | null
+  previewUrl: string | null
+  busy: boolean
+  disabled: boolean
+  profileSaved: boolean
+  onSelect: (file: File) => void
+  onRemove: () => void
+}) {
+  const label = companyAssetLabel(kind)
+  const inputId = `company-${kind}-upload`
+  const Icon = kind === 'signature' ? PenTool : Stamp
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center gap-2 text-sm font-black text-slate-950">
+        <Icon className="h-5 w-5 text-amber-700" />
+        {label}
+        <span className="ml-auto rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Pilihan</span>
+      </div>
+
+      <div className="mt-3 grid h-36 place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white p-3">
+        {previewUrl ? (
+          <img src={previewUrl} alt={`Pratonton ${label.toLocaleLowerCase('ms-MY')}`} className="h-full w-full object-contain" />
+        ) : (
+          <div className="text-center text-slate-400">
+            <Icon className="mx-auto h-9 w-9" />
+            <p className="mt-2 text-xs font-bold">{path ? 'Pratonton belum tersedia' : 'Belum dimuat naik'}</p>
+          </div>
+        )}
+      </div>
+
+      <div className={`mt-3 grid gap-2 ${path ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <label
+          htmlFor={inputId}
+          aria-disabled={disabled}
+          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black ${disabled ? 'cursor-not-allowed bg-slate-200 text-slate-400' : 'cursor-pointer bg-slate-950 text-white hover:bg-slate-800'}`}
+        >
+          <Upload className="h-4 w-4" />
+          {busy ? 'Memuat naik...' : path ? 'Ganti' : 'Muat naik'}
+          <input
+            id={inputId}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={disabled}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (file) onSelect(file)
+            }}
+          />
+        </label>
+        {path && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onRemove}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 text-xs font-black text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Buang
+          </button>
+        )}
+      </div>
+      {!profileSaved && <p className="mt-2 text-xs leading-5 text-amber-800">Simpan Profil dahulu untuk membuka fungsi muat naik.</p>}
+    </article>
   )
 }
 

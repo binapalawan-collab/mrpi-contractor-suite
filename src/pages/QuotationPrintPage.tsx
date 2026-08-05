@@ -117,7 +117,6 @@ export function QuotationPrintPage({ quotationId }: { quotationId: string }) {
             <div><p className="font-black text-slate-950">{english ? 'Payment details' : 'Maklumat bayaran'}</p>{company.bank_name && <p className="mt-1">{company.bank_name}</p>}{company.bank_account_name && <p>{company.bank_account_name}</p>}{company.bank_account_no && <p className="font-black text-slate-950">{company.bank_account_no}</p>}</div>
           </section>
 
-          <section className="mt-12 grid grid-cols-2 gap-12 text-xs"><div className="border-t border-slate-400 pt-2"><p className="font-black">{company.owner_name}</p><p className="mt-1 text-slate-500">{english ? `For ${brand}` : `Bagi pihak ${brand}`}</p></div><div className="border-t border-slate-400 pt-2"><p className="font-black">{english ? 'Client acceptance' : 'Penerimaan pelanggan'}</p><p className="mt-1 text-slate-500">{quotation.client_name}</p></div></section>
         </div>
       </article>
     </div>

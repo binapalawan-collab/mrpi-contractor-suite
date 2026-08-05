@@ -3,7 +3,7 @@
 ## Product rules
 
 - One authenticated user represents one company.
-- The owner is the only signer in V1; staff accounts are not included.
+- Company signature and stamp images are optional private profile assets for future documents that require them; staff accounts are not included.
 - UI and generated documents are Bahasa Melayu first.
 - Database naming remains English-ready.
 - Existing projects and legacy databases will not be migrated.
@@ -52,4 +52,5 @@
 - Workflow is `Draf` → `Dihantar` → `Diterima`; editing a sent quote starts a numbered revision, and an accepted quote is immutable at database level.
 - Each sent revision creates an immutable snapshot in the same transaction as its status change.
 - The printable A4 quotation is gold/white, supports BM/EN document labels, and can be saved as PDF through the device print flow.
+- Quotations do not include signature, stamp or customer-acceptance blocks.
 - WhatsApp output prepares a customer-facing summary; the detailed PDF is attached by the owner from the phone.
