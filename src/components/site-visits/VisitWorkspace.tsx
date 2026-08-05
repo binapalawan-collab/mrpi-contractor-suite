@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import { Link } from 'wouter'
 import {
   formatVisitDate,
   guidePrompts,
@@ -190,8 +191,8 @@ export function VisitWorkspace({
 
       {ready && (
         <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-center gap-2 text-sm font-bold text-emerald-800"><CheckCircle2 className="h-5 w-5" />Lawatan ini menunggu aliran Sebutharga Baru.</p>
-          {visit.status !== 'converted' && <button type="button" disabled={busy} onClick={() => void onSetStatus('completed')} className="text-left text-xs font-bold text-emerald-800 underline disabled:opacity-60">Kembali ke Site Visit Selesai</button>}
+          <div><p className="flex items-center gap-2 text-sm font-bold text-emerald-800"><CheckCircle2 className="h-5 w-5" />{visit.status === 'converted' ? 'Lawatan ini telah dipautkan kepada sebutharga.' : 'Lawatan ini menunggu aliran Sebutharga Baru.'}</p>{visit.status !== 'converted' && <button type="button" disabled={busy} onClick={() => void onSetStatus('completed')} className="mt-2 text-left text-xs font-bold text-emerald-800 underline disabled:opacity-60">Kembali ke Site Visit Selesai</button>}</div>
+          <Link href={`/sebutharga/baru?lawatan=${visit.id}`} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-xs font-black text-white">{visit.status === 'converted' ? 'Buka Sebutharga' : 'Sediakan Sebutharga'}</Link>
         </div>
       )}
 

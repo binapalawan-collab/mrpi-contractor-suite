@@ -8,7 +8,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 import { VisitSetupForm } from '../components/site-visits/VisitSetupForm'
 import { VisitWorkspace } from '../components/site-visits/VisitWorkspace'
@@ -43,6 +43,7 @@ type VisitWorkflowStatus = 'draft' | 'completed' | 'ready_for_quote'
 
 export function SiteVisitPage() {
   const { user } = useAuth()
+  const [, navigate] = useLocation()
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [clients, setClients] = useState<Client[]>([])
   const [visits, setVisits] = useState<SiteVisit[]>([])
@@ -503,6 +504,10 @@ export function SiteVisitPage() {
           ? 'Lawatan sedia untuk langkah Sebutharga Baru.'
           : 'Lawatan dibuka semula sebagai draf.'
       setNotice(statusNotice)
+      if (status === 'ready_for_quote') {
+        clearSiteVisitResume(user!.id)
+        navigate(`/sebutharga/baru?lawatan=${data.id}`)
+      }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Status lawatan tidak dapat dikemas kini.')
     } finally {

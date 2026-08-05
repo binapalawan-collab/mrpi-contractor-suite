@@ -40,3 +40,16 @@
 - A note can be marked `Perlu Pengesahan`; the flag never blocks quotation preparation.
 - Workflow is explicitly `Draf` → `Selesai Site Visit` → `Sediakan Sebutharga`.
 - Photos are stored in a private Supabase bucket under the authenticated owner path.
+
+## Sebutharga checkpoint
+
+- A quotation may begin manually or from a completed site visit.
+- Customer, phone number, project address and work-area names carry forward from a site visit; site notes remain references until the owner explicitly selects a catalog or manual item.
+- New and edited drafts autosave on the device so an app switch or page reload does not discard work.
+- Quote numbers default to `SHDDMMYY-XX` with an atomic daily sequence and remain manually editable while the quote is a draft.
+- Items are grouped by user-controlled work areas and support catalog selection, manual items, area/length/quantity/lump-sum calculations, manual rates and ordering controls.
+- The working copy total is recalculated by Postgres whenever an item changes.
+- Workflow is `Draf` → `Dihantar` → `Diterima`; editing a sent quote starts a numbered revision, and an accepted quote is immutable at database level.
+- Each sent revision creates an immutable snapshot in the same transaction as its status change.
+- The printable A4 quotation is gold/white, supports BM/EN document labels, and can be saved as PDF through the device print flow.
+- WhatsApp output prepares a customer-facing summary; the detailed PDF is attached by the owner from the phone.

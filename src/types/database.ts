@@ -297,6 +297,215 @@ export type Database = {
         }
         Relationships: []
       }
+      quotations: {
+        Row: {
+          id: number
+          company_id: number
+          owner_user_id: string
+          client_id: number
+          site_visit_id: number | null
+          draft_key: string
+          quotation_no: string
+          quotation_date: string
+          language: string
+          client_name: string
+          client_phone: string
+          client_email: string | null
+          project_title: string
+          address_line_1: string
+          address_line_2: string | null
+          postcode: string | null
+          city: string
+          state: string
+          country_code: string
+          validity_days: number
+          status: string
+          revision_no: number
+          total_amount: number
+          notes: string | null
+          sent_at: string | null
+          accepted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          company_id: number
+          owner_user_id: string
+          client_id: number
+          site_visit_id?: number | null
+          draft_key?: string
+          quotation_no: string
+          quotation_date?: string
+          language?: string
+          client_name: string
+          client_phone: string
+          client_email?: string | null
+          project_title: string
+          address_line_1: string
+          address_line_2?: string | null
+          postcode?: string | null
+          city: string
+          state?: string
+          country_code?: string
+          validity_days?: number
+          status?: string
+          revision_no?: number
+          total_amount?: number
+          notes?: string | null
+          sent_at?: string | null
+          accepted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: number
+          site_visit_id?: number | null
+          draft_key?: string
+          quotation_no?: string
+          quotation_date?: string
+          language?: string
+          client_name?: string
+          client_phone?: string
+          client_email?: string | null
+          project_title?: string
+          address_line_1?: string
+          address_line_2?: string | null
+          postcode?: string | null
+          city?: string
+          state?: string
+          country_code?: string
+          validity_days?: number
+          status?: string
+          revision_no?: number
+          total_amount?: number
+          notes?: string | null
+          sent_at?: string | null
+          accepted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quotation_sections: {
+        Row: {
+          id: number
+          quotation_id: number
+          company_id: number
+          owner_user_id: string
+          source_site_visit_id: number | null
+          source_site_visit_area_id: number | null
+          name: string
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          quotation_id: number
+          company_id: number
+          owner_user_id: string
+          source_site_visit_id?: number | null
+          source_site_visit_area_id?: number | null
+          name: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          source_site_visit_id?: number | null
+          source_site_visit_area_id?: number | null
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quotation_items: {
+        Row: {
+          id: number
+          quotation_id: number
+          section_id: number
+          company_id: number
+          owner_user_id: string
+          catalog_item_id: number | null
+          source_site_visit_id: number | null
+          source_site_visit_area_id: number | null
+          source_site_visit_entry_id: number | null
+          item_name: string
+          description: string
+          measurement_text: string | null
+          calculation_method: string
+          unit: string
+          quantity: number
+          rate: number
+          amount: number | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          quotation_id: number
+          section_id: number
+          company_id: number
+          owner_user_id: string
+          catalog_item_id?: number | null
+          source_site_visit_id?: number | null
+          source_site_visit_area_id?: number | null
+          source_site_visit_entry_id?: number | null
+          item_name: string
+          description: string
+          measurement_text?: string | null
+          calculation_method?: string
+          unit: string
+          quantity?: number
+          rate?: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_item_id?: number | null
+          source_site_visit_id?: number | null
+          source_site_visit_area_id?: number | null
+          source_site_visit_entry_id?: number | null
+          item_name?: string
+          description?: string
+          measurement_text?: string | null
+          calculation_method?: string
+          unit?: string
+          quantity?: number
+          rate?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quotation_snapshots: {
+        Row: {
+          id: number
+          quotation_id: number
+          company_id: number
+          owner_user_id: string
+          revision_no: number
+          snapshot_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          quotation_id: number
+          company_id: number
+          owner_user_id: string
+          revision_no: number
+          snapshot_data: Json
+          created_at?: string
+        }
+        Update: {
+          revision_no?: number
+          snapshot_data?: Json
+        }
+        Relationships: []
+      }
       site_visits: {
         Row: {
           id: number
@@ -494,7 +703,16 @@ export type Database = {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      send_quotation_revision: {
+        Args: {
+          p_quotation_id: number
+          p_revision_no: number
+          p_snapshot_data: Json
+        }
+        Returns: Database['public']['Tables']['quotations']['Row']
+      }
+    }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }

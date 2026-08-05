@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">
+      <aside data-app-sidebar className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">
         <Brand />
         <nav className="mt-8 flex-1 space-y-1" aria-label="Menu utama">
           {desktopNav.map(({ to, label, icon: Icon, end }) => {
@@ -88,8 +88,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 border-b border-slate-200/90 bg-white/90 backdrop-blur lg:px-8">
+      <div data-app-content-shell className="lg:pl-72">
+        <header data-app-header className="sticky top-0 z-20 border-b border-slate-200/90 bg-white/90 backdrop-blur lg:px-8">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-0">
             <div className="lg:hidden">
               <Brand compact />
@@ -116,12 +116,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
+        <main data-app-main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
           {children}
         </main>
       </div>
 
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pt-2 shadow-[0_-8px_30px_rgb(15_23_42/0.08)] backdrop-blur lg:hidden" aria-label="Navigasi telefon">
+      <nav data-mobile-nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pt-2 shadow-[0_-8px_30px_rgb(15_23_42/0.08)] backdrop-blur lg:hidden" aria-label="Navigasi telefon">
         {mobileNav.map(({ to, label, icon: Icon, end, primary }) => {
           const active = isCurrentPath(currentPath, to, end)
           return (

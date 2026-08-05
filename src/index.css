@@ -74,3 +74,56 @@ textarea.field-control {
   @apply min-h-28 py-3;
 }
 
+.print-document {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 297mm;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    min-width: 0;
+    background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  [data-app-sidebar],
+  [data-app-header],
+  [data-mobile-nav],
+  .no-print {
+    display: none !important;
+  }
+
+  [data-app-content-shell] {
+    padding-left: 0 !important;
+  }
+
+  [data-app-main] {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .print-page-wrap {
+    padding: 0 !important;
+  }
+
+  .print-document {
+    width: 210mm;
+    min-height: 297mm;
+    max-width: none;
+    box-shadow: none !important;
+  }
+
+  .quotation-table tr,
+  .quotation-table td,
+  .quotation-table th {
+    break-inside: avoid;
+  }
+}
