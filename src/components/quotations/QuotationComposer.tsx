@@ -4,6 +4,8 @@ import {
   ArrowUp,
   BookOpenCheck,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardPenLine,
   FileCheck2,
   FileDown,
@@ -101,6 +103,7 @@ export function QuotationComposer({
   onWhatsApp,
 }: Props) {
   const [newSectionName, setNewSectionName] = useState('')
+  const [customerSectionOpen, setCustomerSectionOpen] = useState(false)
   const areaMap = useMemo(() => new Map(sourceAreas.map((area) => [area.id, area])), [sourceAreas])
   const entryMap = useMemo(() => new Map(sourceEntries.map((entry) => [entry.id, entry])), [sourceEntries])
   const activeSourceEntries = useMemo(() => sourceEntries.filter((entry) => entry.is_active), [sourceEntries])
@@ -136,6 +139,12 @@ export function QuotationComposer({
   }, [draft.sections])
   const total = quotationDraftTotal(draft)
   const itemCount = draft.sections.reduce((count, section) => count + section.items.length, 0)
+  const compactProjectAddress = [
+    draft.header.address_line_1,
+    draft.header.address_line_2,
+    [draft.header.postcode, draft.header.city].filter(Boolean).join(' '),
+    draft.header.state,
+  ].filter(Boolean).join(', ')
 
   function updateHeader<K extends keyof QuotationDraft['header']>(key: K, value: QuotationDraft['header'][K]) {
     onChange({ ...draft, header: { ...draft.header, [key]: value } })
@@ -313,15 +322,30 @@ export function QuotationComposer({
       )}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="flex items-start justify-between gap-4">
+        <button
+          type="button"
+          aria-expanded={customerSectionOpen}
+          aria-controls="quotation-customer-project-content"
+          onClick={() => setCustomerSectionOpen((current) => !current)}
+          className="flex min-h-12 w-full items-center justify-between gap-4 text-left"
+        >
           <div><p className="text-sm font-bold text-amber-700">Langkah 1</p><h2 className="mt-1 text-xl font-black">Pelanggan & projek</h2></div>
-          <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-            <button type="button" disabled={!editable} onClick={() => updateHeader('language', 'ms')} className={`min-h-9 rounded-lg px-3 text-xs font-black ${draft.header.language === 'ms' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>BM</button>
-            <button type="button" disabled={!editable} onClick={() => updateHeader('language', 'en')} className={`min-h-9 rounded-lg px-3 text-xs font-black ${draft.header.language === 'en' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>EN</button>
-          </div>
-        </div>
+          <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-700">
+            {customerSectionOpen ? 'Tutup' : 'Buka'}
+            {customerSectionOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {!customerSectionOpen && (
+          <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-3.5"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Pelanggan</p><p className="mt-1 truncate font-black text-slate-800">{draft.header.client_name || 'Belum diisi'}</p><p className="mt-1 text-xs font-semibold text-slate-500">{draft.header.client_phone || 'No. telefon belum diisi'}</p></div>
+            <div className="rounded-2xl bg-slate-50 p-3.5"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Alamat projek</p><p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600">{compactProjectAddress || 'Alamat belum diisi'}</p></div>
+          </div>
+        )}
+
+        {customerSectionOpen && <div id="quotation-customer-project-content" className="mt-5 border-t border-slate-100 pt-5">
+          <div className="mb-5 flex items-center justify-between gap-3"><p className="text-xs font-bold text-slate-500">Bahasa dokumen</p><div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1"><button type="button" disabled={!editable} onClick={() => updateHeader('language', 'ms')} className={`min-h-9 rounded-lg px-3 text-xs font-black ${draft.header.language === 'ms' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>BM</button><button type="button" disabled={!editable} onClick={() => updateHeader('language', 'en')} className={`min-h-9 rounded-lg px-3 text-xs font-black ${draft.header.language === 'en' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>EN</button></div></div>
+          <div className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className="field-label">Pilih pelanggan sedia ada</span>
             <select disabled={!editable} value={draft.header.client_id ?? ''} onChange={(event) => chooseClient(event.target.value)} className="field-control disabled:bg-slate-100">
@@ -345,7 +369,8 @@ export function QuotationComposer({
             <textarea disabled={!editable} value={draft.header.project_title} onChange={(event) => updateHeader('project_title', event.target.value)} className="field-control min-h-24 disabled:bg-slate-100" />
           </label>
           <label className="block sm:col-span-2"><span className="field-label">Catatan / terma tambahan</span><textarea disabled={!editable} value={draft.header.notes} onChange={(event) => updateHeader('notes', event.target.value)} className="field-control min-h-20 disabled:bg-slate-100" placeholder="Pilihan. Tempoh siap, pengecualian atau nota tambahan." /></label>
-        </div>
+          </div>
+        </div>}
       </section>
 
       {draft.source_site_visit_id !== null && (

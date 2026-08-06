@@ -110,4 +110,50 @@ describe('QuotationComposer item recovery', () => {
     expect(onContinueAsProject).toHaveBeenCalledOnce()
     expect(screen.queryByRole('button', { name: 'Tanda Diterima' })).not.toBeInTheDocument()
   })
+
+  it('keeps customer and project details collapsed by default', () => {
+    const draft = createEmptyQuotationDraft()
+    draft.header.client_name = 'Encik Azman'
+    draft.header.client_phone = '0196547635'
+    draft.header.address_line_1 = '12, Jalan Mawar'
+    draft.header.postcode = '85000'
+    draft.header.city = 'Segamat'
+
+    render(<QuotationComposer
+      draft={draft}
+      clients={[]}
+      categories={[]}
+      catalogItems={[]}
+      sourceAreas={[]}
+      sourceEntries={[]}
+      draftOwnerUserId="owner-1"
+      draftStorageId="manual"
+      editable
+      busy={false}
+      autosaveNotice="Draf disimpan"
+      onChange={vi.fn()}
+      onBack={vi.fn()}
+      onSave={vi.fn(async () => undefined)}
+      onSend={vi.fn(async () => undefined)}
+      onStartRevision={vi.fn(async () => undefined)}
+      onAccept={vi.fn(async () => undefined)}
+      onContinueAsProject={vi.fn(async () => undefined)}
+      onPrint={vi.fn()}
+      onWhatsApp={vi.fn()}
+    />)
+
+    const toggle = screen.getByRole('button', { name: /Pelanggan & projek/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('0196547635')).toBeInTheDocument()
+    expect(screen.getByText(/12, Jalan Mawar, 85000 Segamat/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Nama pelanggan/i)).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText(/Nama pelanggan/i)).toHaveValue('Encik Azman')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByLabelText(/Nama pelanggan/i)).not.toBeInTheDocument()
+  })
 })
