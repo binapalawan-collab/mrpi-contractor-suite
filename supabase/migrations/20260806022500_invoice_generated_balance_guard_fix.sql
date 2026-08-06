@@ -13,11 +13,13 @@ begin
     'private.guard_invoice_update()'::regprocedure
   );
 
-  if function_definition not like '%' || old_fragment || '%' then
+  if function_definition like '%' || old_fragment || '%' then
+    execute replace(function_definition, old_fragment, new_fragment);
+  elsif function_definition like '%' || new_fragment || '%' then
+    null;
+  else
     raise exception 'Struktur guard invois tidak sepadan dengan migration hardening.';
   end if;
-
-  execute replace(function_definition, old_fragment, new_fragment);
 end;
 $$;
 
