@@ -1,4 +1,4 @@
-import { Bell, Landmark } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { useEffect } from 'react'
 import { Route, Switch, useLocation } from 'wouter'
 import { AuthProvider } from './auth/AuthProvider'
@@ -9,6 +9,9 @@ import { AuthPage } from './pages/AuthPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { CompanyProfilePage } from './pages/CompanyProfilePage'
 import { DashboardPage } from './pages/DashboardPage'
+import { FinancePage } from './pages/FinancePage'
+import { InvoiceEditorPage } from './pages/InvoiceEditorPage'
+import { InvoicePrintPage } from './pages/InvoicePrintPage'
 import { MoreMenuPage } from './pages/MoreMenuPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
@@ -16,6 +19,7 @@ import { ProjectListPage } from './pages/ProjectListPage'
 import { QuotationEditorPage } from './pages/QuotationEditorPage'
 import { QuotationListPage } from './pages/QuotationListPage'
 import { QuotationPrintPage } from './pages/QuotationPrintPage'
+import { ReceiptPrintPage } from './pages/ReceiptPrintPage'
 import { SiteVisitPage } from './pages/SiteVisitPage'
 import { SetupRequiredPage } from './pages/SetupRequiredPage'
 import { UpdatePasswordPage } from './pages/UpdatePasswordPage'
@@ -54,9 +58,12 @@ function ProtectedRoutes() {
       <Route path="/sebutharga"><QuotationListPage /></Route>
       <Route path="/projek/:projectId/vo/:voId/cetak">{({ projectId, voId }) => <VariationOrderPrintPage projectId={projectId} variationOrderId={voId} />}</Route>
       <Route path="/projek/:projectId/vo/:voId">{({ projectId, voId }) => <VariationOrderEditorPage projectId={projectId} variationOrderId={voId} />}</Route>
+      <Route path="/projek/:projectId/invois/:invoiceId/bayaran/:paymentId/cetak">{({ projectId, invoiceId, paymentId }) => <ReceiptPrintPage projectId={projectId} invoiceId={invoiceId} paymentId={paymentId} />}</Route>
+      <Route path="/projek/:projectId/invois/:invoiceId/cetak">{({ projectId, invoiceId }) => <InvoicePrintPage projectId={projectId} invoiceId={invoiceId} />}</Route>
+      <Route path="/projek/:projectId/invois/:invoiceId">{({ projectId, invoiceId }) => <InvoiceEditorPage projectId={projectId} invoiceId={invoiceId} />}</Route>
       <Route path="/projek/:id">{({ id }) => <ProjectDetailPage projectId={id} />}</Route>
       <Route path="/projek"><ProjectListPage /></Route>
-      <Route path="/kewangan"><PlaceholderPage title="Kewangan" description="Invois, bayaran separa, peruntukan bayaran, resit dan penyata akaun akan dikendalikan di sini." milestone="Milestone 2" icon={Landmark} /></Route>
+      <Route path="/kewangan"><FinancePage /></Route>
       <Route path="/katalog"><CatalogPage /></Route>
       <Route path="/notifikasi"><PlaceholderPage title="Notifikasi" description="Peringatan bayaran, dokumen belum lengkap dan tindakan projek akan dipaparkan di sini." milestone="Milestone 3" icon={Bell} /></Route>
       <Route path="/menu"><MoreMenuPage /></Route>

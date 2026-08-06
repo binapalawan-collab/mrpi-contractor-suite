@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Banknote,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -9,12 +10,20 @@ import {
   LockKeyhole,
   MapPin,
   Phone,
+  ReceiptText,
   Save,
   WalletCards,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import {
+  formatInvoiceDate,
+  invoiceStatusLabel,
+  invoiceStatusTone,
+  projectInvoiceTotals,
+  type Invoice,
+} from '../lib/invoice'
 import {
   formatMoney,
   formatQuotationNumber,
@@ -49,6 +58,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [sections, setSections] = useState<ProjectSection[]>([])
   const [items, setItems] = useState<ProjectItem[]>([])
   const [variationOrders, setVariationOrders] = useState<VariationOrder[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   const [projectName, setProjectName] = useState('')
   const [plannedStartDate, setPlannedStartDate] = useState('')
   const [plannedEndDate, setPlannedEndDate] = useState('')
@@ -85,14 +95,15 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       }
       setCompanyId(company.id)
 
-      const [projectResult, sectionResult, itemResult, variationOrderResult] = await Promise.all([
+      const [projectResult, sectionResult, itemResult, variationOrderResult, invoiceResult] = await Promise.all([
         client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', company.id).maybeSingle(),
         client.from('project_sections').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
         client.from('project_items').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
         client.from('variation_orders').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).neq('status', 'archived').order('created_at').order('id'),
+        client.from('invoices').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('invoice_date').order('id'),
       ])
       if (!mounted) return
-      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? variationOrderResult.error
+      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? variationOrderResult.error ?? invoiceResult.error
       if (loadError || !projectResult.data) {
         setError(loadError?.message ?? 'Projek tidak ditemui.')
         setLoading(false)
@@ -103,6 +114,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       setSections(sectionResult.data ?? [])
       setItems(itemResult.data ?? [])
       setVariationOrders(variationOrderResult.data ?? [])
+      setInvoices(invoiceResult.data ?? [])
       setProjectName(projectResult.data.project_name)
       setPlannedStartDate(projectResult.data.planned_start_date ?? '')
       setPlannedEndDate(projectResult.data.planned_end_date ?? '')
@@ -201,12 +213,29 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
     }
   }
 
+  async function createInvoice() {
+    if (!supabase || !project) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data, error: createError } = await supabase.rpc('create_project_invoice', { p_project_id: project.id })
+      if (createError) throw createError
+      navigate(`/projek/${project.id}/invois/${data.id}`)
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Invois tidak dapat dicipta.')
+      setBusy(false)
+    }
+  }
+
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Memuatkan projek...</div>
 
   if (!project) return <section className="rounded-3xl border border-red-200 bg-red-50 p-6"><FolderKanban className="h-8 w-8 text-red-700" /><h1 className="mt-4 text-xl font-black">Projek tidak dapat dibuka</h1>{error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}<button type="button" onClick={() => navigate('/projek')} className="mt-4 min-h-11 rounded-xl bg-slate-950 px-4 text-sm font-black text-white">Kembali ke Projek</button></section>
 
   const currentStep = workflow.indexOf(project.status as typeof workflow[number])
   const actionLabel = projectStatusActionLabel(project.status)
+  const invoiceTotals = projectInvoiceTotals(invoices)
+  const remainingToBill = Math.max(0, Number(project.current_contract_amount) - invoiceTotals.billed)
 
   return (
     <div className="space-y-5 pb-20 lg:pb-4">
@@ -254,6 +283,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
           <Info icon={<MapPin />} label="Alamat projek" wide><p className="text-sm font-semibold leading-6">{projectAddress(project)}</p></Info>
           <Info icon={<ClipboardList />} label="Nilai kontrak" wide><p className="text-2xl font-black">{formatMoney(Number(project.contract_amount))}</p></Info>
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-amber-700">Tuntutan dan kutipan projek</p><h2 className="mt-1 text-xl font-black">Invois & Bayaran Progress</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Invois hanya bermula dari projek ini. Bayaran separa dan baki kekal direkod tanpa mengubah invois lama.</p></div><button type="button" disabled={busy || remainingToBill <= 0} onClick={() => void createInvoice()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"><FilePlus2 className="h-5 w-5" />+ Invois Progress</button></div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><ContractSummary label="Diinvois" value={formatMoney(invoiceTotals.billed)} /><ContractSummary label="Diterima" value={formatMoney(invoiceTotals.paid)} tone="text-emerald-700" /><ContractSummary label="Belum bayar" value={formatMoney(invoiceTotals.outstanding)} tone="text-amber-700" /><ContractSummary label="Belum dituntut" value={formatMoney(remainingToBill)} tone="text-blue-700" /></div>
+        {invoices.length ? <div className="grid gap-3 md:grid-cols-2">{invoices.slice().reverse().map((invoice) => <Link key={invoice.id} href={`/projek/${project.id}/invois/${invoice.id}`} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-amber-300 sm:p-5"><div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${invoiceStatusTone(invoice.status)}`}>{invoiceStatusLabel(invoice.status)}</span><p className="mt-3 text-lg font-black">{invoice.invoice_no}</p></div><ReceiptText className="h-6 w-6 text-slate-300" /></div><p className="mt-2 text-sm font-semibold text-slate-700">{invoice.title}</p><div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4"><div><p className="text-[10px] font-black text-slate-400">JUMLAH</p><p className="mt-1 font-black">{formatMoney(Number(invoice.total_amount))}</p></div><div className="text-right"><p className="text-[10px] font-black text-slate-400">BAKI</p><p className={`mt-1 font-black ${Number(invoice.balance_amount) > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatMoney(Number(invoice.balance_amount))}</p></div></div><p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Banknote className="h-4 w-4" />{formatInvoiceDate(invoice.invoice_date)}</p></Link>)}</div> : <p className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-6 text-center text-sm leading-6 text-slate-500">Belum ada invois untuk projek ini. Gunakan “+ Invois Progress” apabila sampai peringkat tuntutan.</p>}
       </section>
 
       <section className="space-y-4">

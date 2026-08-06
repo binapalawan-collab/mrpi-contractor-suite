@@ -645,6 +645,166 @@ export type Database = {
         Update: Record<string, never>
         Relationships: []
       }
+      invoices: {
+        Row: {
+          id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          invoice_no: string
+          invoice_date: string
+          due_date: string | null
+          title: string
+          notes: string
+          status: string
+          total_amount: number
+          paid_amount: number
+          balance_amount: number
+          contract_value_snapshot: number | null
+          previous_billed_amount_snapshot: number | null
+          contract_balance_after_snapshot: number | null
+          issued_at: string | null
+          fully_paid_at: string | null
+          voided_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          company_id?: number
+          owner_user_id?: string
+          invoice_no?: string
+          invoice_date?: string
+          due_date?: string | null
+          title?: string
+          notes?: string
+          status?: string
+          total_amount?: number
+          paid_amount?: number
+          contract_value_snapshot?: number | null
+          previous_billed_amount_snapshot?: number | null
+          contract_balance_after_snapshot?: number | null
+          issued_at?: string | null
+          fully_paid_at?: string | null
+          voided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          invoice_date?: string
+          due_date?: string | null
+          title?: string
+          notes?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      invoice_items: {
+        Row: {
+          id: number
+          invoice_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          variation_order_id: number | null
+          source_type: string
+          description: string
+          percentage: number | null
+          amount: number
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          invoice_id: number
+          project_id?: number
+          company_id?: number
+          owner_user_id?: string
+          variation_order_id?: number | null
+          source_type?: string
+          description: string
+          percentage?: number | null
+          amount: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          variation_order_id?: number | null
+          source_type?: string
+          description?: string
+          percentage?: number | null
+          amount?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      invoice_snapshots: {
+        Row: {
+          id: number
+          invoice_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          snapshot_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          invoice_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          snapshot_data: Json
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
+      invoice_payments: {
+        Row: {
+          id: number
+          invoice_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          receipt_no: string
+          payment_date: string
+          amount: number
+          payment_method: string
+          reference_no: string | null
+          notes: string
+          invoice_total_snapshot: number
+          paid_before_snapshot: number
+          paid_after_snapshot: number
+          balance_after_snapshot: number
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          invoice_id: number
+          project_id?: number
+          company_id?: number
+          owner_user_id?: string
+          receipt_no?: string
+          payment_date?: string
+          amount: number
+          payment_method: string
+          reference_no?: string | null
+          notes?: string
+          invoice_total_snapshot?: number
+          paid_before_snapshot?: number
+          paid_after_snapshot?: number
+          balance_after_snapshot?: number
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
       variation_orders: {
         Row: {
           id: number
@@ -1024,6 +1184,12 @@ export type Database = {
     }
     Views: Record<string, never>
     Functions: {
+      create_project_invoice: {
+        Args: {
+          p_project_id: number
+        }
+        Returns: Database['public']['Tables']['invoices']['Row']
+      }
       create_variation_order: {
         Args: {
           p_project_id: number
@@ -1035,6 +1201,34 @@ export type Database = {
           p_quotation_id: number
         }
         Returns: Database['public']['Tables']['projects']['Row']
+      }
+      issue_project_invoice: {
+        Args: {
+          p_invoice_id: number
+        }
+        Returns: Database['public']['Tables']['invoices']['Row']
+      }
+      record_invoice_payment: {
+        Args: {
+          p_invoice_id: number
+          p_payment_date: string
+          p_amount: number
+          p_payment_method: string
+          p_reference_no?: string | null
+          p_notes?: string
+        }
+        Returns: Database['public']['Tables']['invoice_payments']['Row']
+      }
+      save_project_invoice_draft: {
+        Args: {
+          p_invoice_id: number
+          p_invoice_date: string
+          p_due_date: string | null
+          p_title: string
+          p_notes: string
+          p_items: Json
+        }
+        Returns: Database['public']['Tables']['invoices']['Row']
       }
       record_variation_order_decision: {
         Args: {
@@ -1064,6 +1258,12 @@ export type Database = {
           p_variation_order_id: number
         }
         Returns: Database['public']['Tables']['variation_orders']['Row']
+      }
+      void_project_invoice: {
+        Args: {
+          p_invoice_id: number
+        }
+        Returns: Database['public']['Tables']['invoices']['Row']
       }
     }
     Enums: Record<string, never>
