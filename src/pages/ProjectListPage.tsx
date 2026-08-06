@@ -129,7 +129,7 @@ export function ProjectListPage() {
               <p className="mt-3 font-black text-slate-950">{project.client_name}</p>
               <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-slate-700">{project.project_name}</p>
               <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{projectAddress(project)}</p>
-              <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-4"><p className="flex items-center gap-1.5 text-xs font-semibold text-slate-400"><CalendarDays className="h-4 w-4" />{formatProjectDate(project.planned_start_date)}</p><p className="flex items-center gap-1.5 text-lg font-black"><WalletCards className="h-4 w-4 text-slate-400" />{formatMoney(Number(project.contract_amount))}</p></div>
+              <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-4"><p className="flex items-center gap-1.5 text-xs font-semibold text-slate-400"><CalendarDays className="h-4 w-4" />{formatProjectDate(project.planned_start_date)}</p><div className="text-right"><p className="text-[10px] font-bold text-slate-400">Kontrak semasa</p><p className="mt-1 flex items-center gap-1.5 text-lg font-black"><WalletCards className="h-4 w-4 text-slate-400" />{formatMoney(Number(project.current_contract_amount))}</p></div></div>
             </Link>
           ))}
         </section>

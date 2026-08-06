@@ -529,6 +529,8 @@ export type Database = {
           state: string
           country_code: string
           contract_amount: number
+          approved_variation_amount: number
+          current_contract_amount: number
           status: string
           planned_start_date: string | null
           planned_end_date: string | null
@@ -560,6 +562,7 @@ export type Database = {
           state: string
           country_code?: string
           contract_amount: number
+          approved_variation_amount?: number
           status?: string
           planned_start_date?: string | null
           planned_end_date?: string | null
@@ -637,6 +640,187 @@ export type Database = {
           rate: number
           amount: number
           sort_order?: number
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
+      variation_orders: {
+        Row: {
+          id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          vo_no: string
+          vo_date: string
+          title: string
+          reason: string
+          status: string
+          revision_no: number
+          time_impact_days: number
+          net_amount: number
+          approval_method: string | null
+          approval_note: string | null
+          sent_at: string | null
+          approved_at: string | null
+          rejected_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          vo_no: string
+          vo_date?: string
+          title?: string
+          reason?: string
+          status?: string
+          revision_no?: number
+          time_impact_days?: number
+          net_amount?: number
+          approval_method?: string | null
+          approval_note?: string | null
+          sent_at?: string | null
+          approved_at?: string | null
+          rejected_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          vo_date?: string
+          title?: string
+          reason?: string
+          status?: string
+          revision_no?: number
+          time_impact_days?: number
+          net_amount?: number
+          approval_method?: string | null
+          approval_note?: string | null
+          sent_at?: string | null
+          approved_at?: string | null
+          rejected_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      variation_order_sections: {
+        Row: {
+          id: number
+          variation_order_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          source_project_section_id: number | null
+          name: string
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          variation_order_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          source_project_section_id?: number | null
+          name: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          source_project_section_id?: number | null
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      variation_order_items: {
+        Row: {
+          id: number
+          variation_order_id: number
+          section_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          catalog_item_id: number | null
+          source_project_item_id: number | null
+          change_type: string
+          direction: string
+          item_name: string
+          description: string
+          measurement_text: string | null
+          calculation_method: string
+          unit: string
+          quantity: number
+          rate: number
+          line_amount: number
+          signed_amount: number
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          variation_order_id: number
+          section_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          catalog_item_id?: number | null
+          source_project_item_id?: number | null
+          change_type?: string
+          direction?: string
+          item_name: string
+          description: string
+          measurement_text?: string | null
+          calculation_method?: string
+          unit: string
+          quantity?: number
+          rate?: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_item_id?: number | null
+          source_project_item_id?: number | null
+          change_type?: string
+          direction?: string
+          item_name?: string
+          description?: string
+          measurement_text?: string | null
+          calculation_method?: string
+          unit?: string
+          quantity?: number
+          rate?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      variation_order_snapshots: {
+        Row: {
+          id: number
+          variation_order_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          revision_no: number
+          snapshot_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          variation_order_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          revision_no: number
+          snapshot_data: Json
           created_at?: string
         }
         Update: Record<string, never>
@@ -840,11 +1024,32 @@ export type Database = {
     }
     Views: Record<string, never>
     Functions: {
+      create_variation_order: {
+        Args: {
+          p_project_id: number
+        }
+        Returns: Database['public']['Tables']['variation_orders']['Row']
+      }
       create_project_from_accepted_quotation: {
         Args: {
           p_quotation_id: number
         }
         Returns: Database['public']['Tables']['projects']['Row']
+      }
+      record_variation_order_decision: {
+        Args: {
+          p_variation_order_id: number
+          p_decision: string
+          p_approval_method: string
+          p_approval_note?: string | null
+        }
+        Returns: Database['public']['Tables']['variation_orders']['Row']
+      }
+      send_variation_order_revision: {
+        Args: {
+          p_variation_order_id: number
+        }
+        Returns: Database['public']['Tables']['variation_orders']['Row']
       }
       send_quotation_revision: {
         Args: {
@@ -853,6 +1058,12 @@ export type Database = {
           p_snapshot_data: Json
         }
         Returns: Database['public']['Tables']['quotations']['Row']
+      }
+      start_variation_order_revision: {
+        Args: {
+          p_variation_order_id: number
+        }
+        Returns: Database['public']['Tables']['variation_orders']['Row']
       }
     }
     Enums: Record<string, never>

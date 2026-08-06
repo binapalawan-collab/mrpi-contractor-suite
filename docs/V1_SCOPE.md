@@ -65,3 +65,17 @@
 - Status moves one way through `Persediaan` → `Dijadualkan` → `Aktif` → `Siap Kerja` → `Diserahkan`; system dates are recorded automatically.
 - Later scope or value changes belong in Variation Orders and never overwrite the accepted baseline.
 - Agreement, deposit and payment-schedule workflows are not included in the current Project module.
+
+## Variation Order checkpoint
+
+- A Variation Order can only be created from an existing Project through `+ Perubahan Kerja`; changes before quotation acceptance remain quotation revisions.
+- The accepted quotation scope and original contract amount remain immutable. Approved VO amounts are accumulated separately to derive the current contract amount.
+- A VO supports additions, deductions/omissions, replacements, specification changes, discounts and positive or negative time impact.
+- Items may reference the locked project baseline, the company catalog or a manual entry. A replacement is recorded as a deduction for the old item plus an addition for the new item so the net effect stays explicit.
+- The complete VO draft and the open item composer autosave on the device, including before an app switch, page hide or reload.
+- Workflow is `Draf` → `Dihantar` → `Diluluskan` or `Ditolak`. Sent content is locked; a numbered revision must be opened before editing it again.
+- Every sent revision creates an immutable server-side snapshot. An approved VO is immutable and immediately updates the project's current contract amount without overwriting its original amount.
+- Customer decisions are recorded as WhatsApp, verbal, written or other, with an optional note. Digital signatures from either party are not required.
+- The printable A4 VO shows the original contract, signed net variation and proposed/current contract value, but excludes company email, bank/payment-account details and signature blocks.
+- WhatsApp output prepares a concise customer-facing summary; the owner attaches the detailed PDF from the phone.
+- Approved VOs affect later claimable amounts only. Existing or paid invoices will remain locked when the Finance module is built.

@@ -19,6 +19,8 @@ import { QuotationPrintPage } from './pages/QuotationPrintPage'
 import { SiteVisitPage } from './pages/SiteVisitPage'
 import { SetupRequiredPage } from './pages/SetupRequiredPage'
 import { UpdatePasswordPage } from './pages/UpdatePasswordPage'
+import { VariationOrderEditorPage } from './pages/VariationOrderEditorPage'
+import { VariationOrderPrintPage } from './pages/VariationOrderPrintPage'
 
 export default function App() {
   if (!isSupabaseConfigured) return <SetupRequiredPage />
@@ -50,6 +52,8 @@ function ProtectedRoutes() {
       <Route path="/sebutharga/:id/cetak">{({ id }) => <QuotationPrintPage quotationId={id} />}</Route>
       <Route path="/sebutharga/:id">{({ id }) => <QuotationEditorPage quotationId={id} />}</Route>
       <Route path="/sebutharga"><QuotationListPage /></Route>
+      <Route path="/projek/:projectId/vo/:voId/cetak">{({ projectId, voId }) => <VariationOrderPrintPage projectId={projectId} variationOrderId={voId} />}</Route>
+      <Route path="/projek/:projectId/vo/:voId">{({ projectId, voId }) => <VariationOrderEditorPage projectId={projectId} variationOrderId={voId} />}</Route>
       <Route path="/projek/:id">{({ id }) => <ProjectDetailPage projectId={id} />}</Route>
       <Route path="/projek"><ProjectListPage /></Route>
       <Route path="/kewangan"><PlaceholderPage title="Kewangan" description="Invois, bayaran separa, peruntukan bayaran, resit dan penyata akaun akan dikendalikan di sini." milestone="Milestone 2" icon={Landmark} /></Route>

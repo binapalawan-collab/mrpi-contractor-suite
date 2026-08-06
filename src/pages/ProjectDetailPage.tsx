@@ -4,11 +4,13 @@ import {
   CheckCircle2,
   ClipboardList,
   FileText,
+  FilePlus2,
   FolderKanban,
   LockKeyhole,
   MapPin,
   Phone,
   Save,
+  WalletCards,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'wouter'
@@ -29,6 +31,13 @@ import {
   type ProjectSection,
 } from '../lib/project'
 import { supabase } from '../lib/supabase'
+import {
+  formatSignedMoney,
+  variationOrderNumber,
+  variationOrderStatusLabel,
+  variationOrderStatusTone,
+  type VariationOrder,
+} from '../lib/variationOrder'
 
 const workflow = ['preparation', 'scheduled', 'active', 'work_completed', 'handed_over'] as const
 
@@ -39,6 +48,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null>(null)
   const [sections, setSections] = useState<ProjectSection[]>([])
   const [items, setItems] = useState<ProjectItem[]>([])
+  const [variationOrders, setVariationOrders] = useState<VariationOrder[]>([])
   const [projectName, setProjectName] = useState('')
   const [plannedStartDate, setPlannedStartDate] = useState('')
   const [plannedEndDate, setPlannedEndDate] = useState('')
@@ -75,13 +85,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       }
       setCompanyId(company.id)
 
-      const [projectResult, sectionResult, itemResult] = await Promise.all([
+      const [projectResult, sectionResult, itemResult, variationOrderResult] = await Promise.all([
         client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', company.id).maybeSingle(),
         client.from('project_sections').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
         client.from('project_items').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
+        client.from('variation_orders').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).neq('status', 'archived').order('created_at').order('id'),
       ])
       if (!mounted) return
-      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error
+      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? variationOrderResult.error
       if (loadError || !projectResult.data) {
         setError(loadError?.message ?? 'Projek tidak ditemui.')
         setLoading(false)
@@ -91,6 +102,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       setProject(projectResult.data)
       setSections(sectionResult.data ?? [])
       setItems(itemResult.data ?? [])
+      setVariationOrders(variationOrderResult.data ?? [])
       setProjectName(projectResult.data.project_name)
       setPlannedStartDate(projectResult.data.planned_start_date ?? '')
       setPlannedEndDate(projectResult.data.planned_end_date ?? '')
@@ -174,6 +186,21 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
     }
   }
 
+  async function createVariationOrder() {
+    if (!supabase || !project) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data, error: createError } = await supabase.rpc('create_variation_order', { p_project_id: project.id })
+      if (createError) throw createError
+      navigate(`/projek/${project.id}/vo/${data.id}`)
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Variation Order tidak dapat dicipta.')
+      setBusy(false)
+    }
+  }
+
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Memuatkan projek...</div>
 
   if (!project) return <section className="rounded-3xl border border-red-200 bg-red-50 p-6"><FolderKanban className="h-8 w-8 text-red-700" /><h1 className="mt-4 text-xl font-black">Projek tidak dapat dibuka</h1>{error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}<button type="button" onClick={() => navigate('/projek')} className="mt-4 min-h-11 rounded-xl bg-slate-950 px-4 text-sm font-black text-white">Kembali ke Projek</button></section>
@@ -188,11 +215,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
           <button type="button" onClick={() => navigate('/projek')} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 hover:bg-white/20" aria-label="Kembali"><ArrowLeft className="h-5 w-5" /></button>
           <div className="min-w-0 flex-1"><span className={`rounded-full px-3 py-1 text-[11px] font-black ${projectStatusTone(project.status)}`}>{projectStatusLabel(project.status)}</span><h1 className="mt-3 text-2xl font-black tracking-tight">{project.project_no}</h1><p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-300">{project.project_name}</p></div>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-white/10 p-3.5"><p className="text-xs font-bold text-slate-400">Pelanggan</p><p className="mt-1 truncate font-black">{project.client_name}</p></div><div className="rounded-2xl bg-white/10 p-3.5 text-right"><p className="text-xs font-bold text-slate-400">Nilai kontrak</p><p className="mt-1 text-lg font-black text-amber-300">{formatMoney(Number(project.contract_amount))}</p></div></div>
+        <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-white/10 p-3.5"><p className="text-xs font-bold text-slate-400">Pelanggan</p><p className="mt-1 truncate font-black">{project.client_name}</p></div><div className="rounded-2xl bg-white/10 p-3.5 text-right"><p className="text-xs font-bold text-slate-400">Nilai kontrak semasa</p><p className="mt-1 text-lg font-black text-amber-300">{formatMoney(Number(project.current_contract_amount))}</p></div></div>
       </header>
 
       {error && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
       {notice && <p role="status" className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />{notice}</p>}
+
+      <section className="grid grid-cols-3 gap-3" aria-label="Nilai kontrak projek">
+        <ContractSummary label="Kontrak asal" value={formatMoney(Number(project.contract_amount))} />
+        <ContractSummary label="VO diluluskan" value={formatSignedMoney(Number(project.approved_variation_amount))} tone={Number(project.approved_variation_amount) < 0 ? 'text-red-700' : 'text-emerald-700'} />
+        <ContractSummary label="Kontrak semasa" value={formatMoney(Number(project.current_contract_amount))} tone="text-amber-700" />
+      </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-700">Maklumat operasi</p><h2 className="mt-1 text-xl font-black">Perancangan projek</h2><p className="mt-1 text-sm leading-6 text-slate-500">Nama operasi dan tarikh perancangan boleh dikemas kini. Skop serta nilai kontrak asal kekal dikunci.</p></div></div>
@@ -224,6 +257,11 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       </section>
 
       <section className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-amber-700">Perubahan selepas kontrak</p><h2 className="mt-1 text-xl font-black">Variation Order</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Tambah, tolak atau ubah skop tanpa menimpa sebutharga dan nilai kontrak asal.</p></div><button type="button" disabled={busy} onClick={() => void createVariationOrder()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"><FilePlus2 className="h-5 w-5" />+ Perubahan Kerja</button></div>
+        {variationOrders.length ? <div className="grid gap-3 md:grid-cols-2">{variationOrders.map((variationOrder) => <Link key={variationOrder.id} href={`/projek/${project.id}/vo/${variationOrder.id}`} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-amber-300 sm:p-5"><div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${variationOrderStatusTone(variationOrder.status)}`}>{variationOrderStatusLabel(variationOrder.status)}</span><p className="mt-3 text-lg font-black">{variationOrderNumber(variationOrder.vo_no, variationOrder.revision_no)}</p></div><WalletCards className="h-6 w-6 text-slate-300" /></div><p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-700">{variationOrder.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{variationOrder.reason || 'Sebab perubahan belum diisi.'}</p><div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-4"><p className="text-xs font-bold text-slate-500">Kesan masa: {variationOrder.time_impact_days > 0 ? '+' : ''}{variationOrder.time_impact_days} hari</p><p className={`font-black ${Number(variationOrder.net_amount) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{formatSignedMoney(Number(variationOrder.net_amount))}</p></div></Link>)}</div> : <p className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-6 text-center text-sm leading-6 text-slate-500">Belum ada Variation Order. Gunakan “+ Perubahan Kerja” hanya selepas pelanggan meminta perubahan kepada kontrak yang telah diterima.</p>}
+      </section>
+
+      <section className="space-y-4">
         <div><p className="text-sm font-bold text-amber-700">Baseline kerja</p><h2 className="mt-1 text-xl font-black">Skop daripada sebutharga</h2><p className="mt-1 text-sm leading-6 text-slate-600">Senarai ini untuk rujukan operasi dan tidak boleh diedit di dalam projek.</p></div>
         {sections.map((section) => (
           <article key={section.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -242,4 +280,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 function Info({ icon, label, wide, children }: { icon: React.ReactNode; label: string; wide?: boolean; children: React.ReactNode }) {
   return <article className={`rounded-2xl border border-blue-200 bg-white p-4 ${wide ? 'sm:col-span-2' : ''}`}><div className="mb-3 flex items-center gap-2 text-xs font-black text-slate-500"><span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>{label}</div>{children}</article>
+}
+
+function ContractSummary({ label, value, tone = 'text-slate-950' }: { label: string; value: string; tone?: string }) {
+  return <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"><p className="truncate text-[10px] font-black text-slate-500 sm:text-xs">{label}</p><p className={`mt-2 truncate text-sm font-black sm:text-lg ${tone}`}>{value}</p></article>
 }
