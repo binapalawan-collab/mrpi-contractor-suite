@@ -13,6 +13,7 @@ import { FinancePage } from './pages/FinancePage'
 import { InvoiceEditorPage } from './pages/InvoiceEditorPage'
 import { InvoicePrintPage } from './pages/InvoicePrintPage'
 import { MoreMenuPage } from './pages/MoreMenuPage'
+import { PaymentSchedulePage } from './pages/PaymentSchedulePage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectListPage } from './pages/ProjectListPage'
@@ -62,6 +63,7 @@ function ProtectedRoutes() {
       <Route path="/projek/:projectId/invois/:invoiceId/bayaran/:paymentId/cetak">{({ projectId, invoiceId, paymentId }) => <ReceiptPrintPage projectId={projectId} invoiceId={invoiceId} paymentId={paymentId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId/cetak">{({ projectId, invoiceId }) => <InvoicePrintPage projectId={projectId} invoiceId={invoiceId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId">{({ projectId, invoiceId }) => <InvoiceEditorPage projectId={projectId} invoiceId={invoiceId} />}</Route>
+      <Route path="/projek/:projectId/jadual-bayaran">{({ projectId }) => <PaymentSchedulePage projectId={projectId} />}</Route>
       <Route path="/projek/:projectId/penyata">{({ projectId }) => <ProjectStatementPage projectId={projectId} />}</Route>
       <Route path="/projek/:id">{({ id }) => <ProjectDetailPage projectId={id} />}</Route>
       <Route path="/projek"><ProjectListPage /></Route>

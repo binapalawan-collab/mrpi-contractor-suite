@@ -80,6 +80,10 @@ textarea.field-control {
   min-height: 297mm;
 }
 
+.print-only {
+  display: none;
+}
+
 @media print {
   @page {
     size: A4;
@@ -119,6 +123,10 @@ textarea.field-control {
     min-height: 297mm;
     max-width: none;
     box-shadow: none !important;
+  }
+
+  .print-only {
+    display: block !important;
   }
 
   .quotation-table tr,

@@ -805,6 +805,73 @@ export type Database = {
         Update: Record<string, never>
         Relationships: []
       }
+      payment_schedules: {
+        Row: {
+          id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          title: string
+          notes: string
+          basis_amount: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          title?: string
+          notes?: string
+          basis_amount: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          title?: string
+          notes?: string
+          basis_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_schedule_stages: {
+        Row: {
+          id: number
+          schedule_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          stage_no: number
+          label: string
+          description: string
+          percentage: number
+          amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          schedule_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          stage_no: number
+          label: string
+          description?: string
+          percentage: number
+          amount: number
+          created_at?: string
+        }
+        Update: {
+          stage_no?: number
+          label?: string
+          description?: string
+          percentage?: number
+          amount?: number
+        }
+        Relationships: []
+      }
       variation_orders: {
         Row: {
           id: number
@@ -1229,6 +1296,15 @@ export type Database = {
           p_items: Json
         }
         Returns: Database['public']['Tables']['invoices']['Row']
+      }
+      save_project_payment_schedule: {
+        Args: {
+          p_project_id: number
+          p_title: string
+          p_notes: string
+          p_stages: Json
+        }
+        Returns: Database['public']['Tables']['payment_schedules']['Row']
       }
       record_variation_order_decision: {
         Args: {

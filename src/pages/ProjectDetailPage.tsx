@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   Banknote,
   CalendarDays,
+  CalendarRange,
   CheckCircle2,
   ClipboardList,
   FileText,
@@ -285,6 +286,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
           <Info icon={<ClipboardList />} label="Nilai kontrak" wide><p className="text-2xl font-black">{formatMoney(Number(project.contract_amount))}</p></Info>
         </div>
       </section>
+
+      <section className="flex flex-col gap-4 rounded-3xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"><div className="flex items-start gap-3"><CalendarRange className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-700">Fungsi pilihan</p><h2 className="mt-1 text-xl font-black">Jadual Pembayaran</h2><p className="mt-1 text-sm leading-6 text-slate-600">Sediakan 4, 5, 8 tahap atau jadual manual berdasarkan nilai kontrak semasa.</p></div></div><Link href={`/projek/${project.id}/jadual-bayaran`} className="flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-black text-white">Buka / Cipta Jadual</Link></section>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-amber-700">Tuntutan dan kutipan projek</p><h2 className="mt-1 text-xl font-black">Invois & Bayaran Progress</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Invois hanya bermula dari projek ini. Bayaran separa dan baki kekal direkod tanpa mengubah invois lama.</p></div><div className="flex w-full flex-wrap gap-2 sm:w-auto"><Link href={`/projek/${project.id}/penyata`} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-800 sm:flex-none"><FileSpreadsheet className="h-5 w-5" />Penyata Akaun</Link><button type="button" disabled={busy || remainingToBill <= 0} onClick={() => void createInvoice()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60 sm:flex-none"><FilePlus2 className="h-5 w-5" />+ Invois Progress</button></div></div>

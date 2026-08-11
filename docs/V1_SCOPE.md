@@ -87,5 +87,7 @@
 - Draf dan invois batal tidak termasuk dalam jumlah kewangan atau Penyata Akaun.
 - Pusat Kewangan menunjukkan jumlah diinvois, diterima, belum bayar, umur tunggakan, projek dan kutipan terbaru.
 - Penyata Akaun projek dibina terus daripada invois serta resit sebenar dan memaparkan baki berjalan, baki belum bayar dan nilai kontrak yang belum dituntut.
-- Invois, resit dan Penyata Akaun tidak memaparkan e-mel syarikat, maklumat akaun bank atau blok tandatangan.
-- Agreement, deposit dan payment schedule kekal ditangguhkan sehingga dipersetujui secara khusus.
+- Invois memaparkan maklumat akaun bank syarikat tetapi kekal tanpa e-mel syarikat dan blok tandatangan. Sebutharga, resit dan Penyata Akaun tidak memaparkan maklumat bank.
+- Jadual pembayaran kini pilihan pada setiap Projek: template 4, 5, 8 tahap atau manual; nama, pencapaian dan peratus boleh diubah tetapi jumlah mesti tepat 100%.
+- Amaun jadual dikira daripada nilai kontrak semasa ketika disimpan. VO tidak mengubah jadual secara senyap; owner mesti menyemak dan menyimpan semula jadual.
+- Agreement dan deposit kekal ditangguhkan sehingga dipersetujui secara khusus.

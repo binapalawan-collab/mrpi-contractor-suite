@@ -60,6 +60,9 @@ export type InvoiceDocumentSnapshot = {
     city: string | null
     state: string
     logo_path: string | null
+    bank_name?: string | null
+    bank_account_name?: string | null
+    bank_account_no?: string | null
   }
   project: {
     project_no: string

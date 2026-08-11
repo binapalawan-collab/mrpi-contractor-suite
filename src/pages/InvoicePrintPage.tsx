@@ -84,10 +84,15 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
   const brand = (document.company.trading_name || document.company.legal_name).toLocaleUpperCase('en-MY')
   const companyAddress = [document.company.address_line_1, document.company.address_line_2, [document.company.postcode, document.company.city].filter(Boolean).join(' '), document.company.state].filter(Boolean).join(', ')
   const projectAddress = [document.project.address_line_1, document.project.address_line_2, [document.project.postcode, document.project.city].filter(Boolean).join(' '), document.project.state].filter(Boolean).join(', ')
+  const bankName = document.company.bank_name ?? company.bank_name
+  const bankAccountName = document.company.bank_account_name ?? company.bank_account_name
+  const bankAccountNo = document.company.bank_account_no ?? company.bank_account_no
+  const hasBankDetails = Boolean(bankName || bankAccountName || bankAccountNo)
 
   return (
     <div className="print-page-wrap">
       <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3"><button type="button" onClick={() => navigate(`/projek/${project.id}/invois/${invoice.id}`)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700"><ArrowLeft className="h-5 w-5" />Kembali</button><button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-slate-950"><FileDown className="h-5 w-5" />Cetak / Simpan PDF</button></div>
+      {!hasBankDetails && <p className="no-print mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Maklumat akaun bank belum lengkap. Isi di Profil Syarikat supaya ia dipaparkan dalam invois.</p>}
 
       <article className="print-document mx-auto overflow-hidden bg-white text-slate-950 shadow-xl">
         <header className="border-b-8 border-amber-400 bg-slate-950 px-8 py-7 text-white"><div className="flex items-start justify-between gap-6"><div><p className="text-2xl font-black tracking-tight text-amber-300">{brand}</p>{document.company.registration_no && <p className="mt-1 text-xs font-semibold text-slate-300">{document.company.registration_no}</p>}<p className="mt-3 max-w-md text-xs leading-5 text-slate-300">{companyAddress}</p>{document.company.phone && <p className="mt-1 text-xs text-slate-300">{document.company.phone}</p>}</div><div className="text-right"><p className="text-sm font-black tracking-[0.2em] text-amber-300">INVOIS</p><p className="mt-2 text-lg font-black">{document.invoice.invoice_no}</p><p className="mt-1 text-xs text-slate-300">{formatLongDate(document.invoice.invoice_date)}</p><p className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 text-[10px] font-black">{invoiceStatusLabel(invoice.status)}</p></div></div></header>
@@ -100,6 +105,8 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
           <table className="quotation-table w-full border-collapse text-left text-xs"><thead><tr className="bg-slate-950 text-white"><th className="w-10 px-3 py-3 text-center">Bil.</th><th className="px-3 py-3">Keterangan tuntutan</th><th className="w-28 px-3 py-3 text-right">Asas</th><th className="w-32 px-3 py-3 text-right">Jumlah (RM)</th></tr></thead><tbody>{document.items.map((item, index) => <tr key={`${item.description}-${index}`} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{index + 1}</td><td className="px-3 py-3"><p className="font-black leading-5">{item.description}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{invoiceSourceLabel(item.source_type)}</p></td><td className="px-3 py-3 text-right">{item.percentage ? `${Number(item.percentage).toLocaleString('ms-MY', { maximumFractionDigits: 3 })}%` : 'Jumlah'}</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(item.amount))}</td></tr>)}</tbody></table>
 
           <section className="ml-auto mt-5 w-full max-w-md rounded-2xl bg-slate-950 p-5 text-white"><div className="space-y-3 text-sm"><MoneyRow label="Nilai kontrak semasa" value={formatMoney(Number(document.invoice.contract_value))} /><MoneyRow label="Invois sebelum ini" value={formatMoney(Number(document.invoice.previous_billed_amount))} /><div className="border-t border-white/15 pt-3"><MoneyRow label="JUMLAH INVOIS INI" value={formatMoney(Number(document.invoice.total_amount))} tone="text-amber-300 text-xl" /></div><MoneyRow label="Baki kontrak selepas invois" value={formatMoney(Number(document.invoice.contract_balance_after))} /></div></section>
+
+          {hasBankDetails && <section className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-800">Maklumat Akaun Bank</p><div className="mt-3 grid grid-cols-3 gap-4 text-xs"><BankInfo label="Bank" value={bankName} /><BankInfo label="Nama pemegang akaun" value={bankAccountName} /><BankInfo label="No. akaun" value={bankAccountNo} mono /></div></section>}
 
           {document.invoice.notes && <section className="mt-7 text-xs leading-5 text-slate-600"><p className="font-black text-slate-950">Nota</p><p className="mt-1 whitespace-pre-line">{document.invoice.notes}</p></section>}
 
@@ -129,6 +136,7 @@ function liveDocument(company: Company, project: Project, invoice: Invoice, item
       legal_name: company.legal_name, trading_name: company.trading_name, registration_no: company.registration_no,
       phone: company.phone, address_line_1: company.address_line_1, address_line_2: company.address_line_2,
       postcode: company.postcode, city: company.city, state: company.state, logo_path: company.logo_path,
+      bank_name: company.bank_name, bank_account_name: company.bank_account_name, bank_account_no: company.bank_account_no,
     },
     project: {
       project_no: project.project_no, project_name: project.project_name, client_name: project.client_name,
@@ -141,6 +149,10 @@ function liveDocument(company: Company, project: Project, invoice: Invoice, item
 
 function MoneyRow({ label, value, tone = '' }: { label: string; value: string; tone?: string }) {
   return <div className="flex items-center justify-between gap-5"><p className="font-bold text-slate-300">{label}</p><p className={`font-black ${tone}`}>{value}</p></div>
+}
+
+function BankInfo({ label, value, mono = false }: { label: string; value: string | null | undefined; mono?: boolean }) {
+  return <div><p className="font-bold text-slate-500">{label}</p><p className={`mt-1 font-black text-slate-950 ${mono ? 'tracking-wider' : ''}`}>{value || '—'}</p></div>
 }
 
 function formatNumber(value: number) {
