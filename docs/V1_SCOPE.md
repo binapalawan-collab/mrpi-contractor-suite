@@ -79,3 +79,13 @@
 - The printable A4 VO shows the original contract, signed net variation and proposed/current contract value, but excludes company email, bank/payment-account details and signature blocks.
 - WhatsApp output prepares a concise customer-facing summary; the owner attaches the detailed PDF from the phone.
 - Approved VOs affect later claimable amounts only. Existing or paid invoices will remain locked when the Finance module is built.
+
+## Kewangan checkpoint
+
+- Invois hanya bermula daripada Projek; draf invois autosave pada peranti dan disimpan secara atomik ke server.
+- Invois yang telah dikeluarkan, bayaran dan resit tidak boleh ditulis semula secara senyap. Bayaran separa menghasilkan resit berasingan bagi setiap transaksi.
+- Draf dan invois batal tidak termasuk dalam jumlah kewangan atau Penyata Akaun.
+- Pusat Kewangan menunjukkan jumlah diinvois, diterima, belum bayar, umur tunggakan, projek dan kutipan terbaru.
+- Penyata Akaun projek dibina terus daripada invois serta resit sebenar dan memaparkan baki berjalan, baki belum bayar dan nilai kontrak yang belum dituntut.
+- Invois, resit dan Penyata Akaun tidak memaparkan e-mel syarikat, maklumat akaun bank atau blok tandatangan.
+- Agreement, deposit dan payment schedule kekal ditangguhkan sehingga dipersetujui secara khusus.

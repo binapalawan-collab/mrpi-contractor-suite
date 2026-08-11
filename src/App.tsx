@@ -16,6 +16,7 @@ import { MoreMenuPage } from './pages/MoreMenuPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectListPage } from './pages/ProjectListPage'
+import { ProjectStatementPage } from './pages/ProjectStatementPage'
 import { QuotationEditorPage } from './pages/QuotationEditorPage'
 import { QuotationListPage } from './pages/QuotationListPage'
 import { QuotationPrintPage } from './pages/QuotationPrintPage'
@@ -61,6 +62,7 @@ function ProtectedRoutes() {
       <Route path="/projek/:projectId/invois/:invoiceId/bayaran/:paymentId/cetak">{({ projectId, invoiceId, paymentId }) => <ReceiptPrintPage projectId={projectId} invoiceId={invoiceId} paymentId={paymentId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId/cetak">{({ projectId, invoiceId }) => <InvoicePrintPage projectId={projectId} invoiceId={invoiceId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId">{({ projectId, invoiceId }) => <InvoiceEditorPage projectId={projectId} invoiceId={invoiceId} />}</Route>
+      <Route path="/projek/:projectId/penyata">{({ projectId }) => <ProjectStatementPage projectId={projectId} />}</Route>
       <Route path="/projek/:id">{({ id }) => <ProjectDetailPage projectId={id} />}</Route>
       <Route path="/projek"><ProjectListPage /></Route>
       <Route path="/kewangan"><FinancePage /></Route>
