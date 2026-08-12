@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatProjectDate,
+  effectiveRateForLockedAmount,
+  calculationMethodLabel,
   nextProjectStatus,
   projectAddress,
   projectStatusActionLabel,
@@ -28,5 +30,11 @@ describe('project workflow', () => {
     })).toBe('12, Jalan Mawar, 85000 Segamat, Johor')
     expect(formatProjectDate('2026-08-05')).toContain('2026')
     expect(formatProjectDate(null)).toBe('Belum ditetapkan')
+  })
+
+  it('derives an effective rate while keeping the item amount locked', () => {
+    expect(effectiveRateForLockedAmount(1000, 120)).toBe(8.333333)
+    expect(effectiveRateForLockedAmount(1000, 0)).toBeNull()
+    expect(calculationMethodLabel('area')).toBe('Keluasan')
   })
 })

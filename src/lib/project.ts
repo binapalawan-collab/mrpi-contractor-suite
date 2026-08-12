@@ -3,6 +3,7 @@ import type { Database } from '../types/database'
 export type Project = Database['public']['Tables']['projects']['Row']
 export type ProjectSection = Database['public']['Tables']['project_sections']['Row']
 export type ProjectItem = Database['public']['Tables']['project_items']['Row']
+export type ProjectScopeCorrection = Database['public']['Tables']['project_scope_corrections']['Row']
 
 export type ProjectStatus =
   | 'preparation'
@@ -76,4 +77,17 @@ export function projectAddress(project: Pick<Project, 'address_line_1' | 'addres
     [project.postcode, project.city].filter(Boolean).join(' '),
     project.state,
   ].filter(Boolean).join(', ')
+}
+
+export function effectiveRateForLockedAmount(amount: number, quantity: number) {
+  if (!Number.isFinite(amount) || !Number.isFinite(quantity) || quantity <= 0) return null
+  return Math.round((amount / quantity) * 1_000_000) / 1_000_000
+}
+
+export function calculationMethodLabel(method: string) {
+  if (method === 'area') return 'Keluasan'
+  if (method === 'length') return 'Panjang'
+  if (method === 'qty') return 'Kuantiti'
+  if (method === 'lsum') return 'Lump Sum'
+  return method
 }

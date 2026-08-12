@@ -11,10 +11,12 @@ import {
   FolderKanban,
   LockKeyhole,
   MapPin,
+  PencilLine,
   Phone,
   ReceiptText,
   Save,
   WalletCards,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'wouter'
@@ -32,6 +34,7 @@ import {
 } from '../lib/quotation'
 import {
   formatProjectDate,
+  effectiveRateForLockedAmount,
   nextProjectStatus,
   projectAddress,
   projectStatusActionLabel,
@@ -40,6 +43,7 @@ import {
   type Project,
   type ProjectItem,
   type ProjectSection,
+  type ProjectScopeCorrection,
 } from '../lib/project'
 import { supabase } from '../lib/supabase'
 import {
@@ -59,6 +63,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null>(null)
   const [sections, setSections] = useState<ProjectSection[]>([])
   const [items, setItems] = useState<ProjectItem[]>([])
+  const [scopeCorrections, setScopeCorrections] = useState<ProjectScopeCorrection[]>([])
+  const [editingItem, setEditingItem] = useState<ProjectItem | null>(null)
+  const [correctionDraft, setCorrectionDraft] = useState({ itemName: '', description: '', measurementText: '', calculationMethod: 'qty', unit: '', quantity: '1', reason: '' })
   const [variationOrders, setVariationOrders] = useState<VariationOrder[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [projectName, setProjectName] = useState('')
@@ -97,15 +104,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       }
       setCompanyId(company.id)
 
-      const [projectResult, sectionResult, itemResult, variationOrderResult, invoiceResult] = await Promise.all([
+      const [projectResult, sectionResult, itemResult, correctionResult, variationOrderResult, invoiceResult] = await Promise.all([
         client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', company.id).maybeSingle(),
         client.from('project_sections').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
         client.from('project_items').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
+        client.from('project_scope_corrections').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('created_at', { ascending: false }).order('id', { ascending: false }),
         client.from('variation_orders').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).neq('status', 'archived').order('created_at').order('id'),
         client.from('invoices').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('invoice_date').order('id'),
       ])
       if (!mounted) return
-      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? variationOrderResult.error ?? invoiceResult.error
+      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? correctionResult.error ?? variationOrderResult.error ?? invoiceResult.error
       if (loadError || !projectResult.data) {
         setError(loadError?.message ?? 'Projek tidak ditemui.')
         setLoading(false)
@@ -115,6 +123,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       setProject(projectResult.data)
       setSections(sectionResult.data ?? [])
       setItems(itemResult.data ?? [])
+      setScopeCorrections(correctionResult.data ?? [])
       setVariationOrders(variationOrderResult.data ?? [])
       setInvoices(invoiceResult.data ?? [])
       setProjectName(projectResult.data.project_name)
@@ -132,6 +141,69 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
     for (const item of items) map.set(item.section_id, [...(map.get(item.section_id) ?? []), item])
     return map
   }, [items])
+
+  function openScopeCorrection(item: ProjectItem) {
+    setEditingItem(item)
+    setCorrectionDraft({
+      itemName: item.item_name,
+      description: item.description,
+      measurementText: item.measurement_text ?? '',
+      calculationMethod: item.calculation_method,
+      unit: item.unit,
+      quantity: String(Number(item.quantity)),
+      reason: '',
+    })
+    setError('')
+    setNotice('')
+  }
+
+  async function saveScopeCorrection() {
+    if (!supabase || !editingItem) return
+    const quantity = Number(correctionDraft.quantity)
+    if (!correctionDraft.itemName.trim() || !correctionDraft.description.trim() || !correctionDraft.unit.trim()) {
+      setError('Nama item, keterangan dan unit mesti diisi.')
+      return
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError('Kuantiti mesti lebih besar daripada 0.')
+      return
+    }
+    if (!correctionDraft.reason.trim()) {
+      setError('Sebab pembetulan mesti diisi untuk rekod dalaman.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data, error: correctionError } = await supabase.rpc('correct_project_scope_item', {
+        p_project_item_id: editingItem.id,
+        p_item_name: correctionDraft.itemName,
+        p_description: correctionDraft.description,
+        p_measurement_text: correctionDraft.measurementText.trim() || null,
+        p_calculation_method: correctionDraft.calculationMethod,
+        p_unit: correctionDraft.unit,
+        p_quantity: quantity,
+        p_reason: correctionDraft.reason,
+      })
+      if (correctionError) throw correctionError
+      setItems((current) => current.map((item) => item.id === data.id ? data : item))
+      const { data: correctionRows, error: historyError } = await supabase
+        .from('project_scope_corrections')
+        .select('*')
+        .eq('project_id', editingItem.project_id)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+      if (historyError) throw historyError
+      setScopeCorrections(correctionRows ?? [])
+      setEditingItem(null)
+      setNotice('Butiran Skop Semasa berjaya dibetulkan. Jumlah item dan nilai kontrak kekal.')
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Pembetulan skop tidak dapat disimpan.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function saveOperations() {
     if (!supabase || !project || !companyId) return
@@ -301,18 +373,22 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       </section>
 
       <section className="space-y-4">
-        <div><p className="text-sm font-bold text-amber-700">Baseline kerja</p><h2 className="mt-1 text-xl font-black">Skop daripada sebutharga</h2><p className="mt-1 text-sm leading-6 text-slate-600">Senarai ini untuk rujukan operasi dan tidak boleh diedit di dalam projek.</p></div>
+        <div><p className="text-sm font-bold text-amber-700">Rujukan kerja operasi</p><h2 className="mt-1 text-xl font-black">Skop Semasa Projek</h2><p className="mt-1 text-sm leading-6 text-slate-600">Betulkan ayat, ukuran, unit atau kuantiti tanpa mengubah jumlah. Sebutharga asal dan PDF pelanggan kekal seperti diterima.</p></div>
         {sections.map((section) => (
           <article key={section.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <header className="border-b border-slate-200 bg-slate-50 p-4"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Kawasan kerja</p><h3 className="mt-1 font-black">{section.name}</h3></header>
             <div className="divide-y divide-slate-100 px-4">
-              {(groupedItems.get(section.id) ?? []).map((item) => <div key={item.id} className="py-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="font-black">{item.item_name}</p><p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>{item.measurement_text && <p className="mt-1 text-xs font-semibold text-blue-700">{item.measurement_text}</p>}</div><p className="shrink-0 font-black">{formatMoney(Number(item.amount))}</p></div><p className="mt-2 text-xs font-semibold text-slate-500">{Number(item.quantity)} {item.unit} × {formatMoney(Number(item.rate))}</p></div>)}
+              {(groupedItems.get(section.id) ?? []).map((item) => <div key={item.id} className="py-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="font-black">{item.item_name}</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">{item.description}</p>{item.measurement_text && <p className="mt-1 whitespace-pre-wrap text-xs font-semibold text-blue-700">{item.measurement_text}</p>}</div><p className="shrink-0 font-black">{formatMoney(Number(item.amount))}</p></div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-500">{Number(item.quantity)} {item.unit} × kadar efektif {Number(item.rate).toFixed(6)}</p><button type="button" onClick={() => openScopeCorrection(item)} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700"><PencilLine className="h-4 w-4" />Betulkan Butiran</button></div></div>)}
               {!(groupedItems.get(section.id) ?? []).length && <p className="py-4 text-sm text-slate-500">Tiada item dalam kawasan ini.</p>}
             </div>
           </article>
         ))}
         {!sections.length && <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">Baseline skop tidak ditemui.</p>}
       </section>
+
+      {scopeCorrections.length > 0 && <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"><p className="text-sm font-bold text-amber-700">Rekod dalaman</p><h2 className="mt-1 text-xl font-black">Sejarah Pembetulan Skop</h2><div className="mt-4 space-y-3">{scopeCorrections.map((correction) => <article key={correction.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-black">{correction.reason}</p><p className="mt-1 text-xs font-semibold text-slate-500">{new Intl.DateTimeFormat('ms-MY', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(correction.created_at))}</p></article>)}</div></section>}
+
+      {editingItem && <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="scope-correction-title"><div className="mx-auto max-w-2xl rounded-3xl bg-white p-4 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-amber-700">Harga kekal</p><h2 id="scope-correction-title" className="mt-1 text-xl font-black">Betulkan Butiran Projek</h2><p className="mt-1 text-sm leading-6 text-slate-500">Jumlah item dikunci pada {formatMoney(Number(editingItem.amount))}. Ini tidak mengubah sebutharga asal.</p></div><button type="button" onClick={() => setEditingItem(null)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-100" aria-label="Tutup"><X className="h-5 w-5" /></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="block sm:col-span-2"><span className="field-label">Nama item *</span><input value={correctionDraft.itemName} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, itemName: event.target.value }))} className="field-control" /></label><label className="block sm:col-span-2"><span className="field-label">Keterangan *</span><textarea value={correctionDraft.description} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, description: event.target.value }))} className="field-control min-h-28" /></label><label className="block sm:col-span-2"><span className="field-label">Ukuran / rujukan</span><textarea value={correctionDraft.measurementText} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, measurementText: event.target.value }))} className="field-control min-h-20" /></label><label className="block"><span className="field-label">Kaedah kiraan *</span><select value={correctionDraft.calculationMethod} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, calculationMethod: event.target.value }))} className="field-control"><option value="area">Keluasan</option><option value="length">Panjang</option><option value="qty">Kuantiti</option><option value="lsum">Lump Sum</option></select></label><label className="block"><span className="field-label">Unit *</span><input value={correctionDraft.unit} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, unit: event.target.value }))} className="field-control" /></label><label className="block"><span className="field-label">Kuantiti *</span><input type="number" min="0.001" step="0.001" value={correctionDraft.quantity} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, quantity: event.target.value }))} className="field-control" /></label><div className="rounded-2xl border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-bold text-blue-700">Kadar efektif baharu</p><p className="mt-1 font-black text-blue-950">{effectiveRateForLockedAmount(Number(editingItem.amount), Number(correctionDraft.quantity))?.toFixed(6) ?? '—'}</p><p className="mt-1 text-[11px] text-blue-700">Jumlah kekal {formatMoney(Number(editingItem.amount))}</p></div><label className="block sm:col-span-2"><span className="field-label">Sebab pembetulan *</span><textarea value={correctionDraft.reason} onChange={(event) => setCorrectionDraft((draft) => ({ ...draft, reason: event.target.value }))} placeholder="Contoh: Kuantiti tersalah taip semasa menyediakan sebutharga." className="field-control min-h-24" /></label></div>{error && <p role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}<div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={busy} onClick={() => setEditingItem(null)} className="min-h-12 rounded-xl border border-slate-300 px-5 text-sm font-black">Batal</button><button type="button" disabled={busy} onClick={() => void saveScopeCorrection()} className="min-h-12 rounded-xl bg-amber-400 px-5 text-sm font-black text-slate-950 disabled:opacity-60">{busy ? 'Menyimpan...' : 'Simpan Pembetulan'}</button></div></div></div>}
     </div>
   )
 }

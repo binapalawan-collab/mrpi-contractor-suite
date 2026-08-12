@@ -645,6 +645,32 @@ export type Database = {
         Update: Record<string, never>
         Relationships: []
       }
+      project_scope_corrections: {
+        Row: {
+          id: number
+          project_id: number
+          project_item_id: number
+          company_id: number
+          owner_user_id: string
+          reason: string
+          before_data: Json
+          after_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          project_item_id: number
+          company_id: number
+          owner_user_id: string
+          reason: string
+          before_data: Json
+          after_data: Json
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
       invoices: {
         Row: {
           id: number
@@ -1251,6 +1277,19 @@ export type Database = {
     }
     Views: Record<string, never>
     Functions: {
+      correct_project_scope_item: {
+        Args: {
+          p_project_item_id: number
+          p_item_name: string
+          p_description: string
+          p_measurement_text: string | null
+          p_calculation_method: string
+          p_unit: string
+          p_quantity: number
+          p_reason: string
+        }
+        Returns: Database['public']['Tables']['project_items']['Row']
+      }
       create_project_invoice: {
         Args: {
           p_project_id: number
