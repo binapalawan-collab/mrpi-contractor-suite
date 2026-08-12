@@ -156,4 +156,45 @@ describe('QuotationComposer item recovery', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByLabelText(/Nama pelanggan/i)).not.toBeInTheDocument()
   })
+
+  it('shows an independent total for each work area', () => {
+    const draft = createEmptyQuotationDraft()
+    draft.sections = [
+      {
+        local_id: 'section-kitchen', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Dapur',
+        items: [{ ...pendingItem, local_id: 'dapur-item', quantity: '2', rate: '100.25' }],
+      },
+      {
+        local_id: 'section-porch', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Porch',
+        items: [{ ...pendingItem, local_id: 'porch-item', quantity: '3', rate: '10.10' }],
+      },
+    ]
+
+    render(<QuotationComposer
+      draft={draft}
+      clients={[]}
+      categories={[]}
+      catalogItems={[]}
+      sourceAreas={[]}
+      sourceEntries={[]}
+      draftOwnerUserId="owner-1"
+      draftStorageId="manual"
+      editable
+      busy={false}
+      autosaveNotice="Draf disimpan"
+      onChange={vi.fn()}
+      onBack={vi.fn()}
+      onSave={vi.fn(async () => undefined)}
+      onSend={vi.fn(async () => undefined)}
+      onStartRevision={vi.fn(async () => undefined)}
+      onAccept={vi.fn(async () => undefined)}
+      onContinueAsProject={vi.fn(async () => undefined)}
+      onPrint={vi.fn()}
+      onWhatsApp={vi.fn()}
+    />)
+
+    expect(screen.getByText('Jumlah Dapur').parentElement).toHaveTextContent('RM 200.50')
+    expect(screen.getByText('Jumlah Porch').parentElement).toHaveTextContent('RM 30.30')
+    expect(screen.getByText('Jumlah keseluruhan').parentElement).toHaveTextContent('RM 230.80')
+  })
 })

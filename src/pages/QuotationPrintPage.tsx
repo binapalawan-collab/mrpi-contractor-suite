@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 import { QuotationFormattedText } from '../components/quotations/QuotationFormattedText'
-import { formatMoney, formatQuotationNumber, type Quotation, type QuotationItem, type QuotationSection } from '../lib/quotation'
+import { formatMoney, formatQuotationNumber, quotationStoredItemsTotal, type Quotation, type QuotationItem, type QuotationSection } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
@@ -100,12 +100,14 @@ export function QuotationPrintPage({ quotationId }: { quotationId: string }) {
             <tbody>
               {sections.map((section) => {
                 const sectionItems = items.filter((item) => item.section_id === section.id)
+                const sectionTotal = quotationStoredItemsTotal(sectionItems)
                 return [
                   <tr key={`section-${section.id}`} className="bg-amber-100"><td colSpan={5} className="px-3 py-2.5 font-black uppercase tracking-wide text-amber-950">{section.name}</td></tr>,
                   ...sectionItems.map((item) => {
                     runningNumber += 1
                     return <tr key={item.id} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{runningNumber}</td><td className="min-w-0 px-3 py-3"><QuotationFormattedText text={item.item_name} className="font-black leading-5" /><QuotationFormattedText text={item.description} className="mt-1 leading-5 text-slate-600" />{item.measurement_text && <QuotationFormattedText text={item.measurement_text} className="mt-1 text-[10px] font-semibold leading-4 text-blue-700" />}</td><td className="px-3 py-3 text-right"><p>{Number(item.quantity).toLocaleString(english ? 'en-MY' : 'ms-MY', { maximumFractionDigits: 3 })}</p><p className="mt-1 break-words text-[10px] text-slate-400">{item.unit}</p></td><td className="px-3 py-3 text-right">{formatNumber(Number(item.rate))}</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(item.amount ?? Number(item.quantity) * Number(item.rate)))}</td></tr>
                   }),
+                  <tr key={`section-total-${section.id}`} className="border-y-2 border-amber-300 bg-amber-50"><td colSpan={4} className="px-3 py-3 text-right font-black uppercase tracking-wide text-amber-950">{english ? `Subtotal · ${section.name}` : `Jumlah ${section.name}`}</td><td className="px-3 py-3 text-right text-sm font-black text-amber-950">{formatNumber(sectionTotal)}</td></tr>,
                 ]
               })}
             </tbody>

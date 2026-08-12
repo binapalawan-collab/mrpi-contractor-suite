@@ -7,7 +7,10 @@ import {
   parseNonNegativeNumber,
   quotationDraftTotal,
   quotationItemAmount,
+  quotationSectionTotal,
+  quotationStoredItemsTotal,
   whatsappNumber,
+  type QuotationDraftItem,
 } from './quotation'
 
 describe('quotation helpers', () => {
@@ -21,7 +24,33 @@ describe('quotation helpers', () => {
     }
     draft.sections = [{ local_id: 'section', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Dapur', items: [item] }]
     expect(quotationItemAmount(item)).toBe(30.75)
+    expect(quotationSectionTotal(draft.sections[0]!)).toBe(30.75)
     expect(quotationDraftTotal(draft)).toBe(30.75)
+  })
+
+  it('calculates an independent subtotal for every work area', () => {
+    const draft = createEmptyQuotationDraft()
+    const item = (localId: string, quantity: string, rate: string): QuotationDraftItem => ({
+      local_id: localId, id: null, catalog_item_id: null,
+      source_site_visit_id: null, source_site_visit_area_id: null, source_site_visit_entry_id: null,
+      item_name: 'Item', description: 'Description', measurement_text: '',
+      calculation_method: 'qty', unit: 'unit', quantity, rate,
+    })
+    draft.sections = [
+      { local_id: 'dapur', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Dapur', items: [item('one', '2', '100.25'), item('two', '1', '50.50')] },
+      { local_id: 'porch', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Porch', items: [item('three', '3', '10.10')] },
+    ]
+
+    expect(quotationSectionTotal(draft.sections[0]!)).toBe(251)
+    expect(quotationSectionTotal(draft.sections[1]!)).toBe(30.3)
+    expect(quotationDraftTotal(draft)).toBe(281.3)
+  })
+
+  it('calculates PDF subtotals from stored item amounts with a safe fallback', () => {
+    expect(quotationStoredItemsTotal([
+      { amount: 200.5, quantity: 2, rate: 100.25 },
+      { amount: null, quantity: 3, rate: 10.1 },
+    ])).toBe(230.8)
   })
 
   it('keeps generated defaults manually replaceable', () => {

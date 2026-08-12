@@ -30,6 +30,7 @@ import {
   localId,
   quotationDraftTotal,
   quotationItemAmount,
+  quotationSectionTotal,
   quotationStatusLabel,
   type QuotationDraft,
   type QuotationDraftItem,
@@ -420,6 +421,10 @@ export function QuotationComposer({
               ))}
               {editable && <button type="button" onClick={() => openItemDialog({ sectionLocalId: section.local_id, item: null, sourceNote: null })} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-sm font-black text-amber-900"><Plus className="h-5 w-5" />Tambah Item</button>}
               {!section.items.length && !editable && <p className="py-5 text-center text-sm text-slate-400">Tiada item dalam ruangan ini.</p>}
+              <div className="flex items-center justify-between gap-4 rounded-2xl bg-slate-950 px-4 py-3 text-white">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-300">Jumlah {section.name}</p>
+                <p className="shrink-0 text-lg font-black text-amber-300">{formatMoney(quotationSectionTotal(section))}</p>
+              </div>
             </div>
           </article>
         ))}

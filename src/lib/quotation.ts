@@ -133,11 +133,25 @@ export function quotationItemAmount(item: Pick<QuotationDraftItem, 'quantity' | 
   return Math.round(quantity * rate * 100) / 100
 }
 
-export function quotationDraftTotal(draft: Pick<QuotationDraft, 'sections'>) {
-  return draft.sections.reduce(
-    (total, section) => total + section.items.reduce((sectionTotal, item) => sectionTotal + quotationItemAmount(item), 0),
+export function quotationSectionTotal(section: Pick<QuotationDraftSection, 'items'>) {
+  return Math.round(section.items.reduce(
+    (total, item) => total + quotationItemAmount(item),
     0,
-  )
+  ) * 100) / 100
+}
+
+export function quotationStoredItemsTotal(items: Array<Pick<QuotationItem, 'amount' | 'quantity' | 'rate'>>) {
+  return Math.round(items.reduce(
+    (total, item) => total + Number(item.amount ?? Number(item.quantity) * Number(item.rate)),
+    0,
+  ) * 100) / 100
+}
+
+export function quotationDraftTotal(draft: Pick<QuotationDraft, 'sections'>) {
+  return Math.round(draft.sections.reduce(
+    (total, section) => total + quotationSectionTotal(section),
+    0,
+  ) * 100) / 100
 }
 
 export function formatMoney(value: number) {

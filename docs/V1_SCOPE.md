@@ -53,6 +53,7 @@
 - Each sent revision creates an immutable snapshot in the same transaction as its status change.
 - The printable A4 quotation is gold/white, supports BM/EN document labels, and can be saved as PDF through the device print flow.
 - Item descriptions in the quotation PDF preserve user-entered bullets, new lines, blank paragraphs and long-text wrapping.
+- Every work area shows its own live subtotal in the quotation editor and a matching subtotal row in the printable PDF; the document grand total remains separate.
 - Quotations do not include signature, stamp, customer-acceptance blocks, company email or bank/payment-account details.
 - WhatsApp output prepares a customer-facing summary; the detailed PDF is attached by the owner from the phone.
 
