@@ -223,7 +223,8 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, ini
                 </label>
                 <label className="block">
                   <span className="field-label">Keterangan <span className="text-red-600">*</span></span>
-                  <textarea required value={item.description} onChange={(event) => update('description', event.target.value)} className="field-control" placeholder="Ayat penuh yang akan dicetak dalam PDF." />
+                  <textarea required value={item.description} onChange={(event) => update('description', event.target.value)} className="field-control" placeholder={'Contoh:\n• Struktur lengkap\n• Dinding bata\n\nNota tambahan'} />
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Enter, baris kosong dan bullet seperti •, - atau nombor akan dikekalkan dalam PDF.</p>
                 </label>
                 <label className="block">
                   <span className="field-label">Ukuran / rujukan tapak</span>

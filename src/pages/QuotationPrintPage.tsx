@@ -2,6 +2,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { QuotationFormattedText } from '../components/quotations/QuotationFormattedText'
 import { formatMoney, formatQuotationNumber, type Quotation, type QuotationItem, type QuotationSection } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
@@ -94,7 +95,7 @@ export function QuotationPrintPage({ quotationId }: { quotationId: string }) {
 
           <section className="py-7 text-center"><p className="text-xs font-black tracking-[0.14em] text-amber-700">{english ? 'QUOTATION FOR' : 'SEBUTHARGA UNTUK'}</p><h1 className="mx-auto mt-2 max-w-3xl text-xl font-black leading-8">{quotation.project_title}</h1><p className="mt-2 text-xs font-bold text-slate-400">{english ? `BY ${brand}` : `OLEH ${brand}`}</p></section>
 
-          <table className="quotation-table w-full border-collapse text-left text-xs">
+          <table className="quotation-table w-full table-fixed border-collapse text-left text-xs">
             <thead><tr className="bg-slate-950 text-white"><th className="w-10 px-3 py-3 text-center">{english ? 'No.' : 'Bil.'}</th><th className="px-3 py-3">{english ? 'Description' : 'Keterangan'}</th><th className="w-20 px-3 py-3 text-right">{english ? 'Unit' : 'Unit'}</th><th className="w-24 px-3 py-3 text-right">{english ? 'Rate (RM)' : 'Kadar (RM)'}</th><th className="w-28 px-3 py-3 text-right">{english ? 'Amount (RM)' : 'Jumlah (RM)'}</th></tr></thead>
             <tbody>
               {sections.map((section) => {
@@ -103,7 +104,7 @@ export function QuotationPrintPage({ quotationId }: { quotationId: string }) {
                   <tr key={`section-${section.id}`} className="bg-amber-100"><td colSpan={5} className="px-3 py-2.5 font-black uppercase tracking-wide text-amber-950">{section.name}</td></tr>,
                   ...sectionItems.map((item) => {
                     runningNumber += 1
-                    return <tr key={item.id} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{runningNumber}</td><td className="px-3 py-3"><p className="font-black leading-5">{item.item_name}</p><p className="mt-1 leading-5 text-slate-600">{item.description}</p>{item.measurement_text && <p className="mt-1 text-[10px] font-semibold leading-4 text-blue-700">{item.measurement_text}</p>}</td><td className="px-3 py-3 text-right"><p>{Number(item.quantity).toLocaleString(english ? 'en-MY' : 'ms-MY', { maximumFractionDigits: 3 })}</p><p className="mt-1 text-[10px] text-slate-400">{item.unit}</p></td><td className="px-3 py-3 text-right">{formatNumber(Number(item.rate))}</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(item.amount ?? Number(item.quantity) * Number(item.rate)))}</td></tr>
+                    return <tr key={item.id} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{runningNumber}</td><td className="min-w-0 px-3 py-3"><QuotationFormattedText text={item.item_name} className="font-black leading-5" /><QuotationFormattedText text={item.description} className="mt-1 leading-5 text-slate-600" />{item.measurement_text && <QuotationFormattedText text={item.measurement_text} className="mt-1 text-[10px] font-semibold leading-4 text-blue-700" />}</td><td className="px-3 py-3 text-right"><p>{Number(item.quantity).toLocaleString(english ? 'en-MY' : 'ms-MY', { maximumFractionDigits: 3 })}</p><p className="mt-1 break-words text-[10px] text-slate-400">{item.unit}</p></td><td className="px-3 py-3 text-right">{formatNumber(Number(item.rate))}</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(item.amount ?? Number(item.quantity) * Number(item.rate)))}</td></tr>
                   }),
                 ]
               })}

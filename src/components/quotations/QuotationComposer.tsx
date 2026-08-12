@@ -35,6 +35,7 @@ import {
   type QuotationDraftItem,
   type QuotationDraftSection,
 } from '../../lib/quotation'
+import { QuotationFormattedText } from './QuotationFormattedText'
 import type { Client, SiteVisitArea, SiteVisitEntry } from '../../lib/siteVisit'
 import { QuotationItemDialog } from './QuotationItemDialog'
 import { useMemo, useState } from 'react'
@@ -404,7 +405,7 @@ export function QuotationComposer({
               {section.items.map((item, itemIndex) => (
                 <div key={item.local_id} className="rounded-2xl border border-slate-200 p-3.5">
                   <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2">{item.catalog_item_id ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-800">Katalog</span> : <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">Manual</span>}{item.source_site_visit_entry_id && <span className="text-[10px] font-black text-blue-700">Dari catatan tapak</span>}</div><p className="mt-2 font-black leading-5">{item.item_name}</p><p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>{item.measurement_text && <p className="mt-1 text-xs font-semibold leading-5 text-blue-700">{item.measurement_text}</p>}</div>
+                    <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2">{item.catalog_item_id ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-800">Katalog</span> : <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">Manual</span>}{item.source_site_visit_entry_id && <span className="text-[10px] font-black text-blue-700">Dari catatan tapak</span>}</div><QuotationFormattedText text={item.item_name} className="mt-2 font-black leading-5" /><QuotationFormattedText text={item.description} className="mt-1 text-xs leading-5 text-slate-500" />{item.measurement_text && <QuotationFormattedText text={item.measurement_text} className="mt-1 text-xs font-semibold leading-5 text-blue-700" />}</div>
                     {editable && <div className="flex shrink-0 flex-col gap-1"><button type="button" onClick={() => {
                       const sourceEntry = item.source_site_visit_entry_id ? entryMap.get(item.source_site_visit_entry_id) ?? null : null
                       openItemDialog({
