@@ -134,4 +134,20 @@ textarea.field-control {
   .quotation-table th {
     break-inside: avoid;
   }
+
+  .payment-schedule-table th,
+  .payment-schedule-stage-row td {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  .payment-schedule-closing-group {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .payment-schedule-total-row {
+    break-before: avoid-page;
+    page-break-before: avoid;
+  }
 }
