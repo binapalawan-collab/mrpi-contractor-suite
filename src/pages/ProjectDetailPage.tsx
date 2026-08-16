@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   Banknote,
+  BookOpenCheck,
   CalendarDays,
   CalendarRange,
   CheckCircle2,
@@ -21,6 +22,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { agreementStatusLabel, agreementStatusTone, type ProjectAgreement } from '../lib/agreement'
 import {
   formatInvoiceDate,
   invoiceStatusLabel,
@@ -68,6 +70,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [correctionDraft, setCorrectionDraft] = useState({ itemName: '', description: '', measurementText: '', calculationMethod: 'qty', unit: '', quantity: '1', reason: '' })
   const [variationOrders, setVariationOrders] = useState<VariationOrder[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [agreement, setAgreement] = useState<ProjectAgreement | null>(null)
   const [projectName, setProjectName] = useState('')
   const [plannedStartDate, setPlannedStartDate] = useState('')
   const [plannedEndDate, setPlannedEndDate] = useState('')
@@ -104,16 +107,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       }
       setCompanyId(company.id)
 
-      const [projectResult, sectionResult, itemResult, correctionResult, variationOrderResult, invoiceResult] = await Promise.all([
+      const [projectResult, sectionResult, itemResult, correctionResult, variationOrderResult, invoiceResult, agreementResult] = await Promise.all([
         client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', company.id).maybeSingle(),
         client.from('project_sections').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
         client.from('project_items').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('sort_order').order('id'),
         client.from('project_scope_corrections').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('created_at', { ascending: false }).order('id', { ascending: false }),
         client.from('variation_orders').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).neq('status', 'archived').order('created_at').order('id'),
         client.from('invoices').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).order('invoice_date').order('id'),
+        client.from('project_agreements').select('*').eq('project_id', numericProjectId).eq('company_id', company.id).maybeSingle(),
       ])
       if (!mounted) return
-      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? correctionResult.error ?? variationOrderResult.error ?? invoiceResult.error
+      const loadError = projectResult.error ?? sectionResult.error ?? itemResult.error ?? correctionResult.error ?? variationOrderResult.error ?? invoiceResult.error ?? agreementResult.error
       if (loadError || !projectResult.data) {
         setError(loadError?.message ?? 'Projek tidak ditemui.')
         setLoading(false)
@@ -126,6 +130,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       setScopeCorrections(correctionResult.data ?? [])
       setVariationOrders(variationOrderResult.data ?? [])
       setInvoices(invoiceResult.data ?? [])
+      setAgreement(agreementResult.data)
       setProjectName(projectResult.data.project_name)
       setPlannedStartDate(projectResult.data.planned_start_date ?? '')
       setPlannedEndDate(projectResult.data.planned_end_date ?? '')
@@ -346,7 +351,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
           {workflow.map((status, index) => <li key={status} className={`rounded-2xl border p-3 text-xs font-black ${index <= currentStep ? 'border-amber-300 bg-amber-50 text-slate-950' : 'border-slate-200 bg-slate-50 text-slate-400'}`}><span className="mb-2 grid h-7 w-7 place-items-center rounded-full bg-white text-[11px] shadow-sm">{index + 1}</span>{projectStatusLabel(status)}</li>)}
         </ol>
         <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-3"><p><strong className="text-slate-700">Mula sebenar:</strong> {formatProjectDate(project.actual_start_date)}</p><p><strong className="text-slate-700">Siap kerja:</strong> {formatProjectDate(project.work_completed_at)}</p><p><strong className="text-slate-700">Diserahkan:</strong> {formatProjectDate(project.handed_over_at)}</p></div>
-        {actionLabel ? <button type="button" disabled={busy} onClick={() => void advanceStatus()} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60 sm:w-auto"><CheckCircle2 className="h-5 w-5" />{actionLabel}</button> : <p className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">Projek telah diserahkan.</p>}
+        {project.status === 'preparation' && agreement?.status !== 'accepted' && <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Lengkapkan dan rekod penerimaan Perjanjian Projek sebelum menjadualkan projek.</p>}
+        {actionLabel ? <button type="button" disabled={busy || (project.status === 'preparation' && agreement?.status !== 'accepted')} onClick={() => void advanceStatus()} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60 sm:w-auto"><CheckCircle2 className="h-5 w-5" />{actionLabel}</button> : <p className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">Projek telah diserahkan.</p>}
       </section>
 
       <section className="rounded-3xl border border-blue-200 bg-blue-50 p-4 sm:p-6">
@@ -359,7 +365,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-3xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"><div className="flex items-start gap-3"><CalendarRange className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-700">Fungsi pilihan</p><h2 className="mt-1 text-xl font-black">Jadual Pembayaran</h2><p className="mt-1 text-sm leading-6 text-slate-600">Sediakan 4, 5, 8 tahap atau jadual manual berdasarkan nilai kontrak semasa.</p></div></div><Link href={`/projek/${project.id}/jadual-bayaran`} className="flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-black text-white">Buka / Cipta Jadual</Link></section>
+      <section className="flex flex-col gap-4 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"><div className="flex items-start gap-3"><BookOpenCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" /><div><p className="text-sm font-bold text-emerald-700">Kontrak penuh</p><h2 className="mt-1 text-xl font-black">Perjanjian Projek</h2><p className="mt-1 text-sm leading-6 text-slate-600">Auto-isi data projek, bekukan skop dan jadual bayaran, kemudian rekod persetujuan pelanggan.</p>{agreement && <span className={`mt-3 inline-block rounded-full px-3 py-1 text-[10px] font-black ${agreementStatusTone(agreement.status)}`}>{agreement.agreement_no} · {agreementStatusLabel(agreement.status)}</span>}</div></div><Link href={`/projek/${project.id}/perjanjian`} className="flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-black text-white">{agreement ? 'Buka Perjanjian' : 'Cipta Perjanjian'}</Link></section>
+
+      <section className="flex flex-col gap-4 rounded-3xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"><div className="flex items-start gap-3"><CalendarRange className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-700">Lampiran kontrak</p><h2 className="mt-1 text-xl font-black">Jadual Pembayaran</h2><p className="mt-1 text-sm leading-6 text-slate-600">Sediakan 4, 5, 8 tahap atau jadual manual berdasarkan nilai kontrak semasa.</p></div></div><Link href={`/projek/${project.id}/jadual-bayaran`} className="flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-black text-white">Buka / Cipta Jadual</Link></section>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-amber-700">Tuntutan dan kutipan projek</p><h2 className="mt-1 text-xl font-black">Invois & Bayaran Progress</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Invois hanya bermula dari projek ini. Bayaran separa dan baki kekal direkod tanpa mengubah invois lama.</p></div><div className="flex w-full flex-wrap gap-2 sm:w-auto"><Link href={`/projek/${project.id}/penyata`} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-800 sm:flex-none"><FileSpreadsheet className="h-5 w-5" />Penyata Akaun</Link><button type="button" disabled={busy || remainingToBill <= 0} onClick={() => void createInvoice()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60 sm:flex-none"><FilePlus2 className="h-5 w-5" />+ Invois Progress</button></div></div>

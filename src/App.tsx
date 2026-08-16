@@ -6,6 +6,8 @@ import { RequireAuth } from './auth/RequireAuth'
 import { AppShell } from './components/AppShell'
 import { isSupabaseConfigured } from './lib/supabase'
 import { AuthPage } from './pages/AuthPage'
+import { AgreementPage } from './pages/AgreementPage'
+import { AgreementPrintPage } from './pages/AgreementPrintPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { CompanyProfilePage } from './pages/CompanyProfilePage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -61,6 +63,8 @@ function ProtectedRoutes() {
       <Route path="/sebutharga"><QuotationListPage /></Route>
       <Route path="/projek/:projectId/vo/:voId/cetak">{({ projectId, voId }) => <VariationOrderPrintPage projectId={projectId} variationOrderId={voId} />}</Route>
       <Route path="/projek/:projectId/vo/:voId">{({ projectId, voId }) => <VariationOrderEditorPage projectId={projectId} variationOrderId={voId} />}</Route>
+      <Route path="/projek/:projectId/perjanjian/cetak">{({ projectId }) => <AgreementPrintPage projectId={projectId} />}</Route>
+      <Route path="/projek/:projectId/perjanjian">{({ projectId }) => <AgreementPage projectId={projectId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId/bayaran/:paymentId/cetak">{({ projectId, invoiceId, paymentId }) => <ReceiptPrintPage projectId={projectId} invoiceId={invoiceId} paymentId={paymentId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId/cetak">{({ projectId, invoiceId }) => <InvoicePrintPage projectId={projectId} invoiceId={invoiceId} />}</Route>
       <Route path="/projek/:projectId/invois/:invoiceId">{({ projectId, invoiceId }) => <InvoiceEditorPage projectId={projectId} invoiceId={invoiceId} />}</Route>

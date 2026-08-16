@@ -837,6 +837,99 @@ export type Database = {
         Update: Record<string, never>
         Relationships: []
       }
+      project_agreements: {
+        Row: {
+          id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          agreement_no: string
+          revision_no: number
+          issue_date: string
+          title: string
+          status: string
+          work_duration_text: string
+          client_supplied_items: string
+          exclusions: string
+          defect_terms: string
+          additional_terms: string
+          acceptance_method: string | null
+          acceptance_note: string | null
+          signed_copy_path: string | null
+          initial_invoice_id: number | null
+          issued_at: string | null
+          accepted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: never
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          agreement_no: string
+          revision_no?: number
+          issue_date?: string
+          title?: string
+          status?: string
+          work_duration_text?: string
+          client_supplied_items?: string
+          exclusions?: string
+          defect_terms?: string
+          additional_terms?: string
+          acceptance_method?: string | null
+          acceptance_note?: string | null
+          signed_copy_path?: string | null
+          initial_invoice_id?: number | null
+          issued_at?: string | null
+          accepted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          issue_date?: string
+          title?: string
+          status?: string
+          revision_no?: number
+          work_duration_text?: string
+          client_supplied_items?: string
+          exclusions?: string
+          defect_terms?: string
+          additional_terms?: string
+          acceptance_method?: string | null
+          acceptance_note?: string | null
+          signed_copy_path?: string | null
+          initial_invoice_id?: number | null
+          issued_at?: string | null
+          accepted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      project_agreement_snapshots: {
+        Row: {
+          id: number
+          agreement_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          revision_no: number
+          snapshot_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          agreement_id: number
+          project_id: number
+          company_id: number
+          owner_user_id: string
+          revision_no: number
+          snapshot_data: Json
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
       payment_schedules: {
         Row: {
           id: number
@@ -1283,6 +1376,21 @@ export type Database = {
     }
     Views: Record<string, never>
     Functions: {
+      accept_project_agreement: {
+        Args: {
+          p_agreement_id: number
+          p_acceptance_method: string
+          p_acceptance_note: string
+        }
+        Returns: Database['public']['Tables']['project_agreements']['Row']
+      }
+      attach_project_agreement_signed_copy: {
+        Args: {
+          p_agreement_id: number
+          p_signed_copy_path: string
+        }
+        Returns: Database['public']['Tables']['project_agreements']['Row']
+      }
       correct_project_scope_item: {
         Args: {
           p_project_item_id: number
@@ -1299,6 +1407,12 @@ export type Database = {
       create_project_invoice: {
         Args: {
           p_project_id: number
+        }
+        Returns: Database['public']['Tables']['invoices']['Row']
+      }
+      create_agreement_initial_invoice: {
+        Args: {
+          p_agreement_id: number
         }
         Returns: Database['public']['Tables']['invoices']['Row']
       }
@@ -1319,6 +1433,12 @@ export type Database = {
           p_invoice_id: number
         }
         Returns: Database['public']['Tables']['invoices']['Row']
+      }
+      issue_project_agreement: {
+        Args: {
+          p_agreement_id: number
+        }
+        Returns: Database['public']['Tables']['project_agreements']['Row']
       }
       record_invoice_payment: {
         Args: {
@@ -1341,6 +1461,19 @@ export type Database = {
           p_items: Json
         }
         Returns: Database['public']['Tables']['invoices']['Row']
+      }
+      save_project_agreement_draft: {
+        Args: {
+          p_project_id: number
+          p_issue_date: string
+          p_title: string
+          p_work_duration_text: string
+          p_client_supplied_items: string
+          p_exclusions: string
+          p_defect_terms: string
+          p_additional_terms: string
+        }
+        Returns: Database['public']['Tables']['project_agreements']['Row']
       }
       save_project_payment_schedule: {
         Args: {
@@ -1386,6 +1519,12 @@ export type Database = {
           p_variation_order_id: number
         }
         Returns: Database['public']['Tables']['variation_orders']['Row']
+      }
+      start_project_agreement_revision: {
+        Args: {
+          p_agreement_id: number
+        }
+        Returns: Database['public']['Tables']['project_agreements']['Row']
       }
       void_project_invoice: {
         Args: {
