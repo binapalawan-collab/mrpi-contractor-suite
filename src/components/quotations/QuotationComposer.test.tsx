@@ -16,6 +16,8 @@ const pendingItem: QuotationDraftItem = {
   measurement_text: 'Bahagian sinki · 12 kaki',
   calculation_method: 'length',
   unit: 'kaki',
+  length_value: '12',
+  width_value: '',
   quantity: '12',
   rate: '230.00',
 }
@@ -162,11 +164,11 @@ describe('QuotationComposer item recovery', () => {
     draft.sections = [
       {
         local_id: 'section-kitchen', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Dapur',
-        items: [{ ...pendingItem, local_id: 'dapur-item', quantity: '2', rate: '100.25' }],
+        items: [{ ...pendingItem, local_id: 'dapur-item', length_value: '2', quantity: '2', rate: '100.25' }],
       },
       {
         local_id: 'section-porch', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Porch',
-        items: [{ ...pendingItem, local_id: 'porch-item', quantity: '3', rate: '10.10' }],
+        items: [{ ...pendingItem, local_id: 'porch-item', length_value: '3', quantity: '3', rate: '10.10' }],
       },
     ]
 

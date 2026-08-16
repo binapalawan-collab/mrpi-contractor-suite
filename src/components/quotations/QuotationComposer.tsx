@@ -30,11 +30,14 @@ import {
   localId,
   quotationDraftTotal,
   quotationItemAmount,
+  quotationItemQuantity,
   quotationSectionTotal,
+  quotationSnapshotTotal,
   quotationStatusLabel,
   type QuotationDraft,
   type QuotationDraftItem,
   type QuotationDraftSection,
+  type QuotationSnapshot,
 } from '../../lib/quotation'
 import { QuotationFormattedText } from './QuotationFormattedText'
 import type { Client, SiteVisitArea, SiteVisitEntry } from '../../lib/siteVisit'
@@ -66,6 +69,7 @@ type Props = {
   catalogItems: CatalogItem[]
   sourceAreas: SiteVisitArea[]
   sourceEntries: SiteVisitEntry[]
+  snapshots?: QuotationSnapshot[]
   draftOwnerUserId: string
   draftStorageId: string
   editable: boolean
@@ -78,7 +82,7 @@ type Props = {
   onStartRevision: () => Promise<void>
   onAccept: () => Promise<void>
   onContinueAsProject: () => Promise<void>
-  onPrint: () => void
+  onPrint: () => Promise<void>
   onWhatsApp: () => void
 }
 
@@ -89,6 +93,7 @@ export function QuotationComposer({
   catalogItems,
   sourceAreas,
   sourceEntries,
+  snapshots = [],
   draftOwnerUserId,
   draftStorageId,
   editable,
@@ -276,9 +281,11 @@ export function QuotationComposer({
       source_site_visit_entry_id: entry.id,
       item_name: '',
       description: '',
-      measurement_text: [entry.note_text, entry.measurement_text].filter(Boolean).join(' · '),
+      measurement_text: entry.measurement_text ?? '',
       calculation_method: 'qty',
       unit: 'unit',
+      length_value: '',
+      width_value: '',
       quantity: '1',
       rate: '0.00',
     }
@@ -416,7 +423,7 @@ export function QuotationComposer({
                       })
                     }} className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600" aria-label="Edit item"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => removeItem(section.local_id, item)} className="grid h-9 w-9 place-items-center rounded-lg bg-red-50 text-red-600" aria-label="Buang item"><Trash2 className="h-4 w-4" /></button></div>}
                   </div>
-                  <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3"><div><p className="text-xs font-semibold text-slate-500">{item.quantity} {item.unit} × {formatMoney(Number(item.rate) || 0)}</p><p className="mt-1 text-lg font-black">{formatMoney(quotationItemAmount(item))}</p></div>{editable && <div className="flex gap-1"><button type="button" disabled={itemIndex === 0} onClick={() => moveItem(section.local_id, itemIndex, -1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 disabled:opacity-25" aria-label="Naikkan item"><ArrowUp className="h-4 w-4" /></button><button type="button" disabled={itemIndex === section.items.length - 1} onClick={() => moveItem(section.local_id, itemIndex, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 disabled:opacity-25" aria-label="Turunkan item"><ArrowDown className="h-4 w-4" /></button></div>}</div>
+                  <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3"><div><p className="text-xs font-semibold text-slate-500">{quotationItemQuantity(item) ?? 0} {item.unit} × {formatMoney(Number(item.rate) || 0)}</p><p className="mt-1 text-lg font-black">{formatMoney(quotationItemAmount(item))}</p></div>{editable && <div className="flex gap-1"><button type="button" disabled={itemIndex === 0} onClick={() => moveItem(section.local_id, itemIndex, -1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 disabled:opacity-25" aria-label="Naikkan item"><ArrowUp className="h-4 w-4" /></button><button type="button" disabled={itemIndex === section.items.length - 1} onClick={() => moveItem(section.local_id, itemIndex, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 disabled:opacity-25" aria-label="Turunkan item"><ArrowDown className="h-4 w-4" /></button></div>}</div>
                 </div>
               ))}
               {editable && <button type="button" onClick={() => openItemDialog({ sectionLocalId: section.local_id, item: null, sourceNote: null })} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-sm font-black text-amber-900"><Plus className="h-5 w-5" />Tambah Item</button>}
@@ -437,13 +444,24 @@ export function QuotationComposer({
         <p className="mt-3 text-xs leading-5 text-slate-400">Semua kadar dan kuantiti boleh diubah secara manual semasa status masih Draf.</p>
       </section>
 
+      {snapshots.length > 0 && <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
+        <div className="flex items-start gap-3"><History className="mt-0.5 h-6 w-6 text-blue-700" /><div><p className="text-sm font-bold text-blue-700">Sejarah revision</p><h2 className="mt-1 text-xl font-black">Snapshot yang pernah dihantar</h2><p className="mt-1 text-sm leading-6 text-slate-600">Setiap salinan dikunci. Nilai perubahan dibandingkan dengan revision sebelumnya.</p></div></div>
+        <div className="mt-4 space-y-2">
+          {snapshots.slice().sort((a, b) => b.revision_no - a.revision_no).map((snapshot) => {
+            const previous = snapshots.find((candidate) => candidate.revision_no === snapshot.revision_no - 1)
+            const delta = previous ? quotationSnapshotTotal(snapshot) - quotationSnapshotTotal(previous) : null
+            return <article key={snapshot.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4"><div><p className="font-black">Revision {snapshot.revision_no}</p><p className="mt-1 text-xs font-semibold text-slate-500">Dihantar {new Date(snapshot.created_at).toLocaleString('ms-MY', { dateStyle: 'medium', timeStyle: 'short' })}</p>{delta !== null && <p className={`mt-1 text-xs font-black ${delta > 0 ? 'text-amber-700' : delta < 0 ? 'text-blue-700' : 'text-slate-500'}`}>Perubahan: {delta > 0 ? '+' : ''}{formatMoney(delta)}</p>}</div><div className="text-right"><p className="font-black">{formatMoney(quotationSnapshotTotal(snapshot))}</p><Link href={`/sebutharga/${snapshot.quotation_id}/revision/${snapshot.revision_no}/cetak`} className="mt-2 inline-flex min-h-10 items-center rounded-xl bg-slate-950 px-4 text-xs font-black text-white">Lihat / Cetak</Link></div></article>
+          })}
+        </div>
+      </section>}
+
       <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {editable && <button type="button" disabled={busy} onClick={() => void onSave()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-60"><Save className="h-5 w-5" />Simpan Draf</button>}
         {editable && <button type="button" disabled={busy || itemCount === 0} onClick={() => void onSend()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-40"><Send className="h-5 w-5" />Tanda Dihantar</button>}
         {draft.status === 'sent' && <button type="button" disabled={busy} onClick={() => void onStartRevision()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 text-sm font-black text-blue-900 disabled:opacity-60"><History className="h-5 w-5" />Buat Revision</button>}
         {draft.status === 'sent' && <button type="button" disabled={busy} onClick={() => void onAccept()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"><CheckCircle2 className="h-5 w-5" />Tanda Diterima</button>}
         {draft.status === 'accepted' && <button type="button" disabled={busy} onClick={() => void onContinueAsProject()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"><FolderKanban className="h-5 w-5" />Teruskan Sebagai Projek</button>}
-        <button type="button" disabled={!draft.quotation_id || busy} onClick={onPrint} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-40"><FileDown className="h-5 w-5" />PDF / Cetak</button>
+        <button type="button" disabled={busy || itemCount === 0} onClick={() => void onPrint()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-40"><FileDown className="h-5 w-5" />PDF / Cetak</button>
         <button type="button" disabled={!draft.header.client_phone || busy} onClick={onWhatsApp} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-40"><MessageCircle className="h-5 w-5" />WhatsApp</button>
       </section>
 

@@ -55,6 +55,7 @@ function ProtectedRoutes() {
       <Route path="/profil"><CompanyProfilePage /></Route>
       <Route path="/lawatan-tapak"><SiteVisitPage /></Route>
       <Route path="/sebutharga/baru"><QuotationEditorPage /></Route>
+      <Route path="/sebutharga/:id/revision/:revisionNo/cetak">{({ id, revisionNo }) => <QuotationPrintPage quotationId={id} revisionNo={revisionNo} />}</Route>
       <Route path="/sebutharga/:id/cetak">{({ id }) => <QuotationPrintPage quotationId={id} />}</Route>
       <Route path="/sebutharga/:id">{({ id }) => <QuotationEditorPage quotationId={id} />}</Route>
       <Route path="/sebutharga"><QuotationListPage /></Route>

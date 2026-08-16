@@ -7,6 +7,7 @@ import {
   parseNonNegativeNumber,
   quotationDraftTotal,
   quotationItemAmount,
+  quotationItemQuantity,
   quotationSectionTotal,
   quotationStoredItemsTotal,
   whatsappNumber,
@@ -20,7 +21,7 @@ describe('quotation helpers', () => {
       local_id: 'one', id: null, catalog_item_id: null,
       source_site_visit_id: null, source_site_visit_area_id: null, source_site_visit_entry_id: null,
       item_name: 'Item', description: 'Description', measurement_text: '',
-      calculation_method: 'qty' as const, unit: 'unit', quantity: '2.5', rate: '12.30',
+      calculation_method: 'qty' as const, unit: 'unit', length_value: '', width_value: '', quantity: '2.5', rate: '12.30',
     }
     draft.sections = [{ local_id: 'section', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Dapur', items: [item] }]
     expect(quotationItemAmount(item)).toBe(30.75)
@@ -34,7 +35,7 @@ describe('quotation helpers', () => {
       local_id: localId, id: null, catalog_item_id: null,
       source_site_visit_id: null, source_site_visit_area_id: null, source_site_visit_entry_id: null,
       item_name: 'Item', description: 'Description', measurement_text: '',
-      calculation_method: 'qty', unit: 'unit', quantity, rate,
+      calculation_method: 'qty', unit: 'unit', length_value: '', width_value: '', quantity, rate,
     })
     draft.sections = [
       { local_id: 'dapur', id: null, source_site_visit_id: null, source_site_visit_area_id: null, name: 'Dapur', items: [item('one', '2', '100.25'), item('two', '1', '50.50')] },
@@ -44,6 +45,21 @@ describe('quotation helpers', () => {
     expect(quotationSectionTotal(draft.sections[0]!)).toBe(251)
     expect(quotationSectionTotal(draft.sections[1]!)).toBe(30.3)
     expect(quotationDraftTotal(draft)).toBe(281.3)
+  })
+
+  it('derives real area and length quantities from their dimensions', () => {
+    const areaItem: QuotationDraftItem = {
+      local_id: 'area', id: null, catalog_item_id: null,
+      source_site_visit_id: null, source_site_visit_area_id: null, source_site_visit_entry_id: null,
+      item_name: 'Tiles', description: 'Floor tiles', measurement_text: '',
+      calculation_method: 'area', unit: 'KPS', length_value: '12', width_value: '8.5', quantity: '1', rate: '10',
+    }
+    const lengthItem = { ...areaItem, local_id: 'length', calculation_method: 'length' as const, unit: 'kaki', length_value: '12.5', width_value: '', rate: '20' }
+
+    expect(quotationItemQuantity(areaItem)).toBe(102)
+    expect(quotationItemAmount(areaItem)).toBe(1020)
+    expect(quotationItemQuantity(lengthItem)).toBe(12.5)
+    expect(quotationItemAmount(lengthItem)).toBe(250)
   })
 
   it('calculates PDF subtotals from stored item amounts with a safe fallback', () => {

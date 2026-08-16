@@ -26,8 +26,10 @@ describe('QuotationItemDialog', () => {
     expect(screen.getByText(/tidak memilih item atau harga secara automatik/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Simpan Item' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /Tabletop konkrit/i }))
+    expect(screen.getByLabelText(/Ukuran untuk pelanggan/)).toHaveValue('12 kaki')
     expect(screen.getByDisplayValue('Tabletop konkrit')).toBeInTheDocument()
     expect(screen.getByDisplayValue('180.00')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Panjang'), { target: { value: '12' } })
     fireEvent.click(screen.getByRole('button', { name: 'Simpan Item' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ catalog_item_id: 11, item_name: 'Tabletop konkrit', rate: '180.00' }))
   })
@@ -68,6 +70,8 @@ describe('QuotationItemDialog', () => {
           measurement_text: 'Kabinet bawah sinki · 8 kaki',
           calculation_method: 'length',
           unit: 'kaki',
+          length_value: '8',
+          width_value: '',
           quantity: '8',
           rate: '230.00',
         },
