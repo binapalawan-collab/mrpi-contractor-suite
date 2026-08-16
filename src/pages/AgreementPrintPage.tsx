@@ -1,5 +1,5 @@
-import { ArrowLeft, FileDown } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ArrowLeft, FileDown, Info as InfoIcon } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 import {
@@ -9,6 +9,12 @@ import {
   type AgreementSnapshotData,
   type ProjectAgreement,
 } from '../lib/agreement'
+import {
+  agreementDocumentTermsFromSnapshot,
+  currentAgreementDocumentTerms,
+  legacyAgreementDocumentTerms,
+  type AgreementTermSection,
+} from '../lib/agreementTerms'
 import { formatMoney } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
@@ -115,41 +121,181 @@ export function AgreementPrintPage({ projectId }: { projectId: string }) {
   const brand = (document.company.trading_name || document.company.legal_name).toLocaleUpperCase('en-MY')
   const companyAddress = fullAddress(document.company)
   const siteAddress = fullAddress(document.project)
-  const optionalTerms = ([
-    ['Tempoh kerja / sasaran', document.agreement.work_duration_text],
-    ['Barang dibekalkan pelanggan', document.agreement.client_supplied_items],
-    ['Pengecualian kerja', document.agreement.exclusions],
-    ['Kecacatan / waranti', document.agreement.defect_terms],
-    ['Terma tambahan', document.agreement.additional_terms],
-  ] satisfies Array<[string, string]>).filter(([, value]) => value.trim())
+  const frozenTerms = agreementDocumentTermsFromSnapshot(document.document)
+  const termsAreFrozen = Boolean(frozenTerms)
+  const contractTerms = frozenTerms
+    ? frozenTerms
+    : agreement.status === 'draft'
+      ? currentAgreementDocumentTerms()
+      : legacyAgreementDocumentTerms
+  const sectionOne = contractTerms.standard_terms.find((section) => section.number === '1')
+  const sectionThree = contractTerms.standard_terms.find((section) => section.number === '3')
+  const remainingSections = contractTerms.standard_terms.filter((section) => !['1', '3'].includes(section.number))
+  const specialTerms = [
+    ['9.1 Tempoh kerja / sasaran', document.agreement.work_duration_text],
+    ['9.2 Kecacatan / waranti', document.agreement.defect_terms],
+    ['9.3 Terma tambahan', document.agreement.additional_terms],
+  ] satisfies Array<[string, string]>
 
   return (
     <div className="print-page-wrap">
-      <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3"><button type="button" onClick={() => navigate(`/projek/${projectId}/perjanjian`)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700"><ArrowLeft className="h-5 w-5" />Kembali</button><button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-slate-950"><FileDown className="h-5 w-5" />Cetak / Simpan PDF</button></div>
-      {agreement.status === 'draft' && <p className="no-print mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Ini pratonton draf. Keluarkan perjanjian untuk membekukan skop dan jadual bayaran.</p>}
+      <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={() => navigate(`/projek/${projectId}/perjanjian`)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700"><ArrowLeft className="h-5 w-5" />Kembali</button>
+        <button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-black text-slate-950"><FileDown className="h-5 w-5" />Cetak A4 / Simpan PDF</button>
+      </div>
+      <div className="no-print mb-5 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950"><InfoIcon className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" /><p>Dalam dialog cetak, pilih <strong>A4</strong>, skala <strong>100%</strong> dan matikan header/footer pelayar. Pratonton Android kadangkala menggunakan “Letter” walaupun dokumen ini direka untuk A4.</p></div>
+      {agreement.status === 'draft' && <p className="no-print mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Ini pratonton draf. Keluarkan perjanjian untuk membekukan skop, jadual bayaran dan teks terma standard bagi revisi ini.</p>}
+      {agreement.status !== 'draft' && !termsAreFrozen && <p className="no-print mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">Rekod ini dikeluarkan menggunakan format terdahulu yang tidak menyimpan teks terma standard dalam snapshot. Versi terdahulu dikekalkan; mulakan revisi baharu untuk format kontrak lengkap.</p>}
 
-      <article className="print-document mx-auto overflow-hidden bg-white text-slate-950 shadow-xl">
-        <header className="border-b-8 border-amber-400 bg-slate-950 px-8 py-7 text-white"><div className="flex items-start justify-between gap-6"><div><p className="text-2xl font-black tracking-tight text-amber-300">{brand}</p>{document.company.registration_no && <p className="mt-1 text-xs font-semibold text-slate-300">{document.company.registration_no}</p>}<p className="mt-3 max-w-md text-xs leading-5 text-slate-300">{companyAddress}</p><p className="mt-1 text-xs text-slate-300">{document.company.phone}</p></div><div className="text-right"><p className="text-sm font-black tracking-[0.18em] text-amber-300">PERJANJIAN PROJEK</p><p className="mt-2 text-lg font-black">{document.agreement.agreement_no}</p><p className="mt-1 text-xs text-slate-300">Rev {document.agreement.revision_no} · {formatLongDate(document.agreement.issue_date)}</p><p className="mt-2 inline-block rounded-full bg-white/10 px-3 py-1 text-[10px] font-black">{agreementStatusLabel(agreement.status)}</p></div></div></header>
+      <article className="print-document agreement-print-document mx-auto bg-white text-slate-950 shadow-xl">
+        <header className="agreement-brand-header">
+          <div>
+            <p className="agreement-brand-name">{brand}</p>
+            <div className="agreement-brand-details">
+              {document.company.registration_no && <p>No. pendaftaran: {document.company.registration_no}</p>}
+              {document.company.cidb_registration_no && <p>CIDB: {document.company.cidb_registration_no}{document.company.cidb_grade ? ` · Gred ${document.company.cidb_grade}` : ''}{document.company.cidb_expiry_date ? ` · Sah hingga ${formatLongDate(document.company.cidb_expiry_date)}` : ''}</p>}
+              <p>{companyAddress}</p>
+              <p>{[document.company.phone, document.company.email].filter(Boolean).join(' · ')}</p>
+            </div>
+          </div>
+          <div className="agreement-document-id">
+            <p>PERJANJIAN PROJEK</p>
+            <strong>{document.agreement.agreement_no}</strong>
+            <span>Rev {document.agreement.revision_no} · {formatLongDate(document.agreement.issue_date)}</span>
+            <b>{agreementStatusLabel(agreement.status)}</b>
+          </div>
+        </header>
 
-        <div className="px-8 py-7">
-          <section className="text-center"><p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Perjanjian antara kontraktor dan pelanggan</p><h1 className="mt-2 text-2xl font-black">{document.agreement.title}</h1></section>
+        <main className="agreement-body">
+          {agreement.status === 'draft' && <div className="agreement-draft-mark">DRAF · BUKAN UNTUK DITANDATANGANI</div>}
 
-          <section className="mt-7 grid grid-cols-2 gap-6 border-y border-slate-200 py-6 text-sm"><Party label="Kontraktor" name={document.company.legal_name} details={[document.company.owner_name, document.company.registration_no, document.company.phone]} /><Party label="Pelanggan" name={document.project.client_name} details={[document.project.client_phone, document.project.client_email]} /></section>
+          <section className="agreement-cover-page">
+            <div className="agreement-title-block">
+              <p>PERJANJIAN ANTARA KONTRAKTOR DAN PELANGGAN</p>
+              <h1>{document.agreement.title}</h1>
+              <span>Dokumen ini hendaklah dibaca sepenuhnya bersama semua lampiran yang dirujuk.</span>
+            </div>
 
-          <section className="py-6"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Butiran projek</p><div className="mt-3 grid grid-cols-2 gap-4 rounded-2xl bg-slate-100 p-5 text-xs"><Info label="No. projek" value={document.project.project_no} /><Info label="Rujukan sebutharga" value={`${document.project.quotation_no} Rev ${document.project.quotation_revision_no}`} /><Info label="Nama projek" value={document.project.project_name} wide /><Info label="Alamat tapak" value={siteAddress} wide /><Info label="Nilai kontrak semasa" value={formatMoney(Number(document.project.current_contract_amount))} wide strong /></div></section>
+            <p className="agreement-recital">Perjanjian ini dibuat pada <strong>{formatLongDate(document.agreement.issue_date)}</strong> antara pihak-pihak berikut bagi kerja di tapak yang dinyatakan. Pihak-pihak mengesahkan bahawa mereka mempunyai kuasa untuk membuat perjanjian ini dan berniat untuk terikat dengan termanya apabila diterima menurut Klausa 1.1.</p>
 
-          <section className="pb-6"><h2 className="text-lg font-black">1. Skop kerja yang dipersetujui</h2><p className="mt-2 text-xs leading-5 text-slate-600">Kontraktor akan melaksanakan skop berikut berdasarkan rekod projek semasa perjanjian ini dikeluarkan. Perubahan harga atau skop selepas ini hendaklah melalui Variation Order yang diluluskan.</p><div className="mt-4 space-y-3">{document.scope.map((section) => <div key={`${section.sort_order}-${section.name}`} className="rounded-2xl border border-slate-200 p-4"><h3 className="text-xs font-black uppercase tracking-wide text-amber-800">{section.name}</h3><ul className="mt-2 space-y-2">{section.items.map((item, index) => <li key={`${item.sort_order}-${item.item_name}`} className="grid grid-cols-[1.5rem_1fr] text-xs leading-5"><span className="font-black text-slate-400">{index + 1}.</span><div><p className="font-black">{item.item_name}</p>{item.description && <p className="text-slate-600">{item.description}</p>}{item.measurement_text && <p className="text-blue-700">{item.measurement_text}</p>}</div></li>)}</ul></div>)}</div></section>
+            <div className="agreement-party-grid">
+              <PartyCard label="Kontraktor" name={document.company.legal_name} rows={[
+                document.company.registration_no ? `No. pendaftaran: ${document.company.registration_no}` : null,
+                document.company.cidb_registration_no ? `CIDB: ${document.company.cidb_registration_no}${document.company.cidb_grade ? ` · Gred ${document.company.cidb_grade}` : ''}${document.company.cidb_expiry_date ? ` · Sah hingga ${formatLongDate(document.company.cidb_expiry_date)}` : ''}` : null,
+                `Wakil: ${document.company.owner_name}`,
+                companyAddress,
+                [document.company.phone, document.company.email].filter(Boolean).join(' · '),
+              ]} />
+              <PartyCard label="Pelanggan" name={document.project.client_name} rows={[
+                `Telefon: ${document.project.client_phone}`,
+                document.project.client_email ? `E-mel: ${document.project.client_email}` : null,
+                `Alamat notis: ${siteAddress}`,
+              ]} />
+            </div>
 
-          <section className="pb-6"><h2 className="text-lg font-black">2. Jadual pembayaran</h2><p className="mt-2 text-xs leading-5 text-slate-600">Setiap tuntutan adalah berdasarkan tahap yang dicapai. Jumlah tahap di bawah dibekukan bersama perjanjian ini.</p><table className="quotation-table mt-4 w-full border-collapse text-left text-xs"><thead><tr className="bg-slate-950 text-white"><th className="w-10 px-3 py-3 text-center">Bil.</th><th className="px-3 py-3">Tahap / pencapaian</th><th className="w-20 px-3 py-3 text-right">Peratus</th><th className="w-32 px-3 py-3 text-right">Jumlah (RM)</th></tr></thead><tbody>{document.payment_schedule.stages.map((stage) => <tr key={stage.stage_no} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{stage.stage_no}</td><td className="px-3 py-3"><p className="font-black">{stage.label}</p>{stage.description && <p className="mt-1 leading-5 text-slate-600">{stage.description}</p>}</td><td className="px-3 py-3 text-right font-black">{Number(stage.percentage)}%</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(stage.amount))}</td></tr>)}<tr className="bg-amber-50 font-black"><td colSpan={2} className="px-3 py-4 text-right">JUMLAH KESELURUHAN</td><td className="px-3 py-4 text-right">100%</td><td className="px-3 py-4 text-right">{formatNumber(Number(document.payment_schedule.basis_amount))}</td></tr></tbody></table>{document.payment_schedule.notes && <p className="mt-3 whitespace-pre-line text-xs leading-5 text-slate-600">{document.payment_schedule.notes}</p>}</section>
+            <section className="agreement-section agreement-keep-together">
+              <SectionHeading number="A" title="Butiran Kontrak" />
+              <dl className="agreement-particulars">
+                <Particular label="No. projek" value={document.project.project_no} />
+                <Particular label="Sebutharga diterima" value={`${document.project.quotation_no} Rev ${document.project.quotation_revision_no}`} />
+                <Particular label="Nama projek" value={document.project.project_name} wide />
+                <Particular label="Alamat tapak" value={siteAddress} wide />
+                <Particular label="Harga Kontrak" value={formatMoney(Number(document.project.current_contract_amount))} strong />
+                <Particular label="Tarikh mula dirancang" value={formatOptionalDate(document.project.planned_start_date)} />
+                <Particular label="Tarikh siap dirancang" value={formatOptionalDate(document.project.planned_end_date)} />
+                <Particular label="Tempoh kerja" value={document.agreement.work_duration_text || 'Belum dinyatakan'} wide />
+                <Particular label="Gantirugi kelewatan (LAD)" value="Tidak terpakai kecuali dinyatakan dalam Terma Khusus." />
+                <Particular label="Wang tahanan" value="Tidak terpakai kecuali dinyatakan dalam Terma Khusus." />
+              </dl>
+            </section>
 
-          <section className="pb-6"><h2 className="text-lg font-black">3. Terma utama</h2><ol className="mt-3 space-y-3 text-xs leading-5 text-slate-700"><li><strong>3.1 Bayaran.</strong> Bayaran dibuat mengikut jadual di atas. Tahap pertama ialah bayaran permulaan yang akan diinvois dengan jumlah tetap seperti dinyatakan.</li><li><strong>3.2 Perubahan kerja.</strong> Sebarang perubahan skop atau harga selepas perjanjian diterima mesti direkod dan diluluskan melalui Variation Order sebelum dilaksanakan.</li><li><strong>3.3 Kerosakan tersembunyi.</strong> Kerosakan atau keadaan tersembunyi yang tidak termasuk dalam skop asal akan dinilai berasingan dan, jika melibatkan perubahan kerja atau harga, dikemukakan melalui Variation Order.</li><li><strong>3.4 Kemajuan kerja.</strong> Tarikh mula operasi projek ditetapkan secara berasingan selepas perjanjian diterima dan tidak berlaku secara automatik.</li></ol></section>
+            {sectionOne && <TermSection section={sectionOne} />}
+          </section>
 
-          {optionalTerms.length > 0 && <section className="pb-6"><h2 className="text-lg font-black">4. Terma khusus</h2><div className="mt-3 space-y-3">{optionalTerms.map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 p-3 text-xs leading-5"><p className="font-black">{label}</p><p className="mt-1 whitespace-pre-line text-slate-600">{value}</p></div>)}</div></section>}
+          <section className="agreement-section agreement-scope-section">
+            <SectionHeading number="2" title="Skop Kerja" />
+            <p className="agreement-lead">Kontraktor hendaklah melaksanakan skop berikut mengikut Dokumen Kontrak. Kuantiti, ukuran dan penerangan hendaklah dibaca bersama sebutharga serta lukisan atau spesifikasi yang diluluskan.</p>
+            <div className="agreement-scope-list">
+              {document.scope.length ? document.scope.map((section) => (
+                <div key={`${section.sort_order}-${section.name}`} className="agreement-scope-group">
+                  <h3>{section.name}</h3>
+                  {section.items.length ? <ol>{section.items.map((item) => (
+                    <li key={`${item.sort_order}-${item.item_name}`}>
+                      <div><strong>{item.item_name}</strong>{item.description && <p>{item.description}</p>}{item.measurement_text && <span>{item.measurement_text}</span>}</div>
+                    </li>
+                  ))}</ol> : <p className="agreement-empty">Tiada item direkodkan.</p>}
+                </div>
+              )) : <p className="agreement-empty">Tiada skop kerja direkodkan.</p>}
+            </div>
+            <div className="agreement-two-column-cards">
+              <TextCard title="2.1 Barang dibekalkan Pelanggan" value={document.agreement.client_supplied_items} />
+              <TextCard title="2.2 Pengecualian kerja" value={document.agreement.exclusions} />
+            </div>
+          </section>
 
-          <section className="mt-2 grid grid-cols-2 gap-8 border-t border-slate-200 pt-8 text-xs"><div><p className="font-black">Bagi pihak kontraktor</p><div className="mt-4 flex h-24 items-end gap-2">{assetUrls.signature && <img src={assetUrls.signature} alt="Tandatangan syarikat" className="max-h-20 max-w-36 object-contain" />}{assetUrls.stamp && <img src={assetUrls.stamp} alt="Cop syarikat" className="max-h-20 max-w-24 object-contain" />}</div><div className="border-t border-slate-400 pt-2"><p className="font-black">{document.company.owner_name}</p><p>{document.company.legal_name}</p></div></div><div><p className="font-black">Penerimaan pelanggan</p>{agreement.status === 'accepted' ? <div className="mt-4 rounded-xl bg-emerald-50 p-4 leading-5 text-emerald-900"><p className="font-black">{agreementAcceptanceLabel(agreement.acceptance_method)}</p><p className="mt-1">Direkod pada {formatLongDateTime(agreement.accepted_at)}</p>{agreement.acceptance_note && <p className="mt-1 whitespace-pre-line">{agreement.acceptance_note}</p>}</div> : <div className="mt-20 border-t border-slate-400 pt-2"><p className="font-black">{document.project.client_name}</p><p>Tarikh: ____________________</p></div>}</div></section>
+          <section className="agreement-section agreement-payment-section">
+            <SectionHeading number="3" title="Harga Kontrak dan Jadual Pembayaran" />
+            <p className="agreement-lead">Jadual ini dibekukan bersama revisi perjanjian. Setiap tuntutan tertakluk kepada pencapaian yang dinyatakan dan invois Kontraktor.</p>
+            <table className="agreement-payment-table quotation-table">
+              <colgroup><col className="agreement-col-number" /><col /><col className="agreement-col-percent" /><col className="agreement-col-amount" /></colgroup>
+              <thead><tr><th>Bil.</th><th>Tahap / pencapaian</th><th>Peratus</th><th>Jumlah (RM)</th></tr></thead>
+              <tbody>
+                {document.payment_schedule.stages.map((stage) => <tr key={stage.stage_no}><td>{stage.stage_no}</td><td><strong>{stage.label}</strong>{stage.description && <p>{stage.description}</p>}</td><td>{Number(stage.percentage)}%</td><td>{formatNumber(Number(stage.amount))}</td></tr>)}
+                <tr className="agreement-payment-total"><td colSpan={2}>JUMLAH KESELURUHAN</td><td>100%</td><td>{formatNumber(Number(document.payment_schedule.basis_amount))}</td></tr>
+              </tbody>
+            </table>
+            {document.payment_schedule.notes && <div className="agreement-payment-notes"><strong>Nota jadual:</strong><p>{document.payment_schedule.notes}</p></div>}
+            {sectionThree && <TermSection section={sectionThree} hideHeading />}
+          </section>
 
-          <footer className="mt-8 border-t border-slate-200 pt-4 text-[10px] leading-4 text-slate-500"><p>Dokumen ini mesti dibaca bersama sebutharga diterima dan Variation Order yang diluluskan, jika ada. Snapshot sistem mengekalkan versi yang dikeluarkan.</p></footer>
-        </div>
+          {remainingSections.map((section) => <TermSection key={section.number} section={section} />)}
+
+          <section className="agreement-section agreement-special-terms">
+            <SectionHeading number="9" title="Terma Khusus" />
+            <p className="agreement-lead">Terma di bawah mengatasi terma standard setakat percanggahan yang dinyatakan dengan jelas. Ruang kosong atau “tiada” tidak mewujudkan janji tambahan.</p>
+            <div className="agreement-special-list">
+              {specialTerms.map(([label, value]) => <TextCard key={label} title={label} value={value} />)}
+            </div>
+          </section>
+
+          <section className="agreement-section agreement-signature-page">
+            <SectionHeading number="10" title="Akuan dan Pelaksanaan" />
+            <div className="agreement-declaration">Dengan menandatangani atau menerima Perjanjian ini, setiap pihak mengesahkan bahawa butirannya tepat, telah membaca dan memahami keseluruhan Dokumen Kontrak, berpeluang mendapatkan nasihat bebas, dan bersetuju terikat dengan <strong>{document.agreement.agreement_no} Rev {document.agreement.revision_no}</strong>.</div>
+
+            {agreement.status === 'accepted' && <div className="agreement-acceptance-record">
+              <p>REKOD PENERIMAAN ELEKTRONIK / SISTEM</p>
+              <strong>{agreementAcceptanceLabel(agreement.acceptance_method)}</strong>
+              <span>Direkod pada {formatLongDateTime(agreement.accepted_at)}</span>
+              {agreement.acceptance_note && <em>{agreement.acceptance_note}</em>}
+              {agreement.signed_copy_path && <small>Bukti private dilampirkan dalam rekod sistem.</small>}
+            </div>}
+
+            <div className="agreement-signature-grid">
+              <SignatureCard title="Bagi pihak Kontraktor">
+                <div className="agreement-signature-assets">{assetUrls.signature && <img src={assetUrls.signature} alt="Tandatangan Kontraktor" />}{assetUrls.stamp && <img src={assetUrls.stamp} alt="Cop syarikat" />}</div>
+                <SignatureLine label="Tandatangan" />
+                <SignatureValue label="Nama" value={document.company.owner_name} />
+                <SignatureValue label="Jawatan" value="Pemilik / Wakil diberi kuasa" />
+                <SignatureLine label="No. K/P / Pasport" />
+                <SignatureLine label="Tarikh" />
+                <WitnessBlock />
+              </SignatureCard>
+              <SignatureCard title="Pelanggan">
+                <div className="agreement-signature-assets" />
+                <SignatureLine label="Tandatangan" />
+                <SignatureValue label="Nama" value={document.project.client_name} />
+                <SignatureLine label="No. K/P / Pasport" />
+                <SignatureLine label="Tarikh" />
+                <WitnessBlock />
+              </SignatureCard>
+            </div>
+          </section>
+
+          <footer className="agreement-footer">
+            <p>{document.agreement.agreement_no} · Rev {document.agreement.revision_no} · Templat {contractTerms.template_version}</p>
+            <p>Dokumen ini mesti dibaca bersama semua lampiran dan Variation Order yang diluluskan. Simpan salinan lengkap serta bukti penerimaan.</p>
+          </footer>
+        </main>
       </article>
     </div>
   )
@@ -157,17 +303,68 @@ export function AgreementPrintPage({ projectId }: { projectId: string }) {
 
 function liveDocument(company: Company, project: Project, agreement: ProjectAgreement, sections: ProjectSection[], items: ProjectItem[], schedule: Schedule, stages: Stage[]): AgreementSnapshotData {
   return {
+    document: currentAgreementDocumentTerms(),
     agreement: { agreement_no: agreement.agreement_no, revision_no: agreement.revision_no, issue_date: agreement.issue_date, title: agreement.title, work_duration_text: agreement.work_duration_text, client_supplied_items: agreement.client_supplied_items, exclusions: agreement.exclusions, defect_terms: agreement.defect_terms, additional_terms: agreement.additional_terms },
-    company: { legal_name: company.legal_name, trading_name: company.trading_name, registration_no: company.registration_no, owner_name: company.owner_name, phone: company.phone, address_line_1: company.address_line_1, address_line_2: company.address_line_2, postcode: company.postcode, city: company.city, state: company.state, signature_path: company.signature_path, stamp_path: company.stamp_path },
+    company: { legal_name: company.legal_name, trading_name: company.trading_name, registration_no: company.registration_no, owner_name: company.owner_name, phone: company.phone, email: company.email, address_line_1: company.address_line_1, address_line_2: company.address_line_2, postcode: company.postcode, city: company.city, state: company.state, cidb_registration_no: company.cidb_registration_no, cidb_grade: company.cidb_grade, cidb_expiry_date: company.cidb_expiry_date, signature_path: company.signature_path, stamp_path: company.stamp_path },
     project: { id: project.id, project_no: project.project_no, project_name: project.project_name, quotation_no: project.quotation_no, quotation_revision_no: project.quotation_revision_no, client_name: project.client_name, client_phone: project.client_phone, client_email: project.client_email, address_line_1: project.address_line_1, address_line_2: project.address_line_2, postcode: project.postcode, city: project.city, state: project.state, contract_amount: Number(project.contract_amount), current_contract_amount: Number(project.current_contract_amount), planned_start_date: project.planned_start_date, planned_end_date: project.planned_end_date },
     scope: sections.map((section) => ({ name: section.name, sort_order: section.sort_order, items: items.filter((item) => item.section_id === section.id).map((item) => ({ item_name: item.item_name, description: item.description, measurement_text: item.measurement_text, unit: item.unit, quantity: Number(item.quantity), amount: Number(item.amount), sort_order: item.sort_order })) })),
     payment_schedule: { title: schedule.title, notes: schedule.notes, basis_amount: Number(schedule.basis_amount), stages: stages.map((stage) => ({ stage_no: stage.stage_no, label: stage.label, description: stage.description, percentage: Number(stage.percentage), amount: Number(stage.amount) })) },
   }
 }
 
-function Party({ label, name, details }: { label: string; name: string; details: Array<string | null> }) { return <div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">{label}</p><p className="mt-2 text-lg font-black">{name}</p>{details.filter(Boolean).map((detail) => <p key={detail} className="mt-1 text-slate-600">{detail}</p>)}</div> }
-function Info({ label, value, wide, strong }: { label: string; value: string; wide?: boolean; strong?: boolean }) { return <div className={wide ? 'col-span-2' : ''}><p className="font-black text-slate-500">{label}</p><p className={`mt-1 leading-5 ${strong ? 'text-lg font-black text-amber-800' : 'font-semibold'}`}>{value}</p></div> }
-function fullAddress(row: { address_line_1: string | null; address_line_2: string | null; postcode: string | null; city: string | null; state: string }) { return [row.address_line_1, row.address_line_2, [row.postcode, row.city].filter(Boolean).join(' '), row.state].filter(Boolean).join(', ') }
-function formatNumber(value: number) { return value.toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
-function formatLongDate(value: string) { const [year = 1970, month = 1, day = 1] = value.slice(0, 10).split('-').map(Number); return new Intl.DateTimeFormat('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(year, month - 1, day)) }
-function formatLongDateTime(value: string | null) { return value ? new Intl.DateTimeFormat('ms-MY', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value)) : '—' }
+function SectionHeading({ number, title }: { number: string; title: string }) {
+  return <div className="agreement-section-heading"><span>{number}</span><h2>{title}</h2></div>
+}
+
+function TermSection({ section, hideHeading = false }: { section: AgreementTermSection; hideHeading?: boolean }) {
+  return <section className="agreement-section agreement-term-section">{!hideHeading && <SectionHeading number={section.number} title={section.title} />}<div className="agreement-clause-list">{section.clauses.map((clause) => <div key={clause.number} className="agreement-clause"><p><strong>{clause.number} {clause.title}.</strong> {clause.text}</p></div>)}</div></section>
+}
+
+function PartyCard({ label, name, rows }: { label: string; name: string; rows: Array<string | null> }) {
+  return <div className="agreement-party-card"><p>{label}</p><h2>{name}</h2>{rows.filter((row): row is string => Boolean(row)).map((row) => <span key={row}>{row}</span>)}</div>
+}
+
+function Particular({ label, value, wide, strong }: { label: string; value: string; wide?: boolean; strong?: boolean }) {
+  return <div className={wide ? 'agreement-particular-wide' : ''}><dt>{label}</dt><dd className={strong ? 'agreement-particular-strong' : ''}>{value}</dd></div>
+}
+
+function TextCard({ title, value }: { title: string; value: string }) {
+  return <div className="agreement-text-card"><h3>{title}</h3><p>{value.trim() || 'Tiada yang dinyatakan.'}</p></div>
+}
+
+function SignatureCard({ title, children }: { title: string; children: ReactNode }) {
+  return <div className="agreement-signature-card"><h3>{title}</h3>{children}</div>
+}
+
+function SignatureLine({ label }: { label: string }) {
+  return <div className="agreement-signature-field"><span>{label}</span><i /></div>
+}
+
+function SignatureValue({ label, value }: { label: string; value: string }) {
+  return <div className="agreement-signature-field"><span>{label}</span><strong>{value}</strong></div>
+}
+
+function WitnessBlock() {
+  return <div className="agreement-witness"><h4>Disaksikan oleh</h4><SignatureLine label="Tandatangan saksi" /><SignatureLine label="Nama saksi" /><SignatureLine label="No. K/P / Pasport" /><SignatureLine label="Tarikh" /></div>
+}
+
+function fullAddress(row: { address_line_1: string | null; address_line_2: string | null; postcode: string | null; city: string | null; state: string }) {
+  return [row.address_line_1, row.address_line_2, [row.postcode, row.city].filter(Boolean).join(' '), row.state].filter(Boolean).join(', ') || 'Alamat belum dinyatakan'
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatLongDate(value: string) {
+  const [year = 1970, month = 1, day = 1] = value.slice(0, 10).split('-').map(Number)
+  return new Intl.DateTimeFormat('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(year, month - 1, day))
+}
+
+function formatOptionalDate(value: string | null) {
+  return value ? formatLongDate(value) : 'Akan dipersetujui secara bertulis'
+}
+
+function formatLongDateTime(value: string | null) {
+  return value ? new Intl.DateTimeFormat('ms-MY', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value)) : '—'
+}

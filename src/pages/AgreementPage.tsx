@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   FileCheck2,
@@ -8,6 +9,7 @@ import {
   ReceiptText,
   Save,
   Send,
+  ShieldCheck,
   Upload,
 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -16,13 +18,16 @@ import { useAuth } from '../auth/AuthProvider'
 import {
   agreementAcceptanceLabel,
   agreementDocumentBucket,
+  agreementErrorMessage,
   agreementFormFromRow,
   agreementStatusLabel,
   agreementStatusTone,
   buildAgreementDocumentPath,
   defaultAgreementForm,
+  validateAgreementAcceptance,
   validateAgreementDocument,
   validateAgreementForm,
+  validateAgreementIssueForm,
   type AgreementAcceptanceMethod,
   type AgreementForm,
   type ProjectAgreement,
@@ -31,10 +36,14 @@ import type { PaymentSchedule, PaymentScheduleStage } from '../lib/paymentSchedu
 import { projectAddress, type Project } from '../lib/project'
 import { formatMoney } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
+import type { Database } from '../types/database'
+
+type Company = Database['public']['Tables']['companies']['Row']
 
 export function AgreementPage({ projectId }: { projectId: string }) {
   const { user } = useAuth()
   const [, navigate] = useLocation()
+  const [company, setCompany] = useState<Company | null>(null)
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [agreement, setAgreement] = useState<ProjectAgreement | null>(null)
@@ -43,6 +52,7 @@ export function AgreementPage({ projectId }: { projectId: string }) {
   const [form, setForm] = useState<AgreementForm>(defaultAgreementForm)
   const [acceptanceMethod, setAcceptanceMethod] = useState<AgreementAcceptanceMethod>('whatsapp')
   const [acceptanceNote, setAcceptanceNote] = useState('')
+  const [acceptanceConfirmed, setAcceptanceConfirmed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -61,7 +71,7 @@ export function AgreementPage({ projectId }: { projectId: string }) {
     let mounted = true
 
     async function load() {
-      const { data: company, error: companyError } = await client.from('companies').select('id').eq('owner_user_id', currentUser.id).maybeSingle()
+      const { data: company, error: companyError } = await client.from('companies').select('*').eq('owner_user_id', currentUser.id).maybeSingle()
       if (!mounted) return
       if (companyError || !company) {
         setError(companyError?.message ?? 'Profil syarikat tidak ditemui.')
@@ -92,6 +102,7 @@ export function AgreementPage({ projectId }: { projectId: string }) {
         stageRows = data ?? []
       }
       setCompanyId(company.id)
+      setCompany(company)
       setProject(projectResult.data)
       setAgreement(agreementResult.data)
       setSchedule(scheduleResult.data)
@@ -107,6 +118,15 @@ export function AgreementPage({ projectId }: { projectId: string }) {
   const editable = !agreement || agreement.status === 'draft'
   const firstStage = stages[0] ?? null
   const totalPercentage = useMemo(() => stages.reduce((total, stage) => total + Number(stage.percentage), 0), [stages])
+  const legalReadinessWarnings = useMemo(() => {
+    if (!company) return []
+    const warnings: string[] = []
+    if (!company.registration_no) warnings.push('Nombor pendaftaran perniagaan / SSM belum diisi dalam Profil Syarikat.')
+    if (!company.cidb_registration_no) warnings.push('Nombor pendaftaran CIDB belum diisi dalam Profil Syarikat.')
+    if (company.cidb_expiry_date && company.cidb_expiry_date < new Date().toISOString().slice(0, 10)) warnings.push('Pendaftaran CIDB dalam Profil Syarikat telah tamat tempoh.')
+    if (!company.address_line_1 || !company.city || !company.postcode) warnings.push('Alamat berdaftar syarikat belum lengkap.')
+    return warnings
+  }, [company])
 
   function patchForm<K extends keyof AgreementForm>(key: K, value: AgreementForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -137,13 +157,15 @@ export function AgreementPage({ projectId }: { projectId: string }) {
     setError('')
     setNotice('')
     try { await action() } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : fallback)
+      setError(agreementErrorMessage(caughtError, fallback))
     } finally { setBusy(false) }
   }
 
   async function issueAgreement() {
     if (!project) return
     await run(async () => {
+      const legalTermsError = validateAgreementIssueForm(form)
+      if (legalTermsError) throw new Error(legalTermsError)
       if (!schedule || !stages.length || Math.round(totalPercentage * 1000) / 1000 !== 100) {
         throw new Error('Simpan Jadual Pembayaran lengkap 100% sebelum mengeluarkan perjanjian.')
       }
@@ -152,7 +174,7 @@ export function AgreementPage({ projectId }: { projectId: string }) {
       }
       const saved = await saveDraft(false)
       if (!saved || !supabase) return
-      if (!window.confirm('Keluarkan perjanjian ini? Kandungan, skop dan jadual bayaran akan dibekukan sebagai snapshot.')) return
+      if (!window.confirm('Keluarkan perjanjian ini? Butiran pihak, terma standard, terma khusus, skop dan jadual bayaran akan dibekukan mengikut nombor revisi ini.')) return
       const { data, error: issueError } = await supabase.rpc('issue_project_agreement', { p_agreement_id: saved.id })
       if (issueError) throw issueError
       setAgreement(data)
@@ -185,13 +207,16 @@ export function AgreementPage({ projectId }: { projectId: string }) {
         throw attachError
       }
       setAgreement(data)
-      setAcceptanceMethod('uploaded')
-      setNotice('Salinan perjanjian ditandatangani berjaya disimpan secara private.')
-    }, 'Salinan perjanjian tidak dapat dimuat naik.')
+      setNotice('Bukti penerimaan berjaya dilampirkan secara private.')
+    }, 'Bukti penerimaan tidak dapat dimuat naik.')
   }
 
   async function acceptAgreement() {
-    if (!agreement || !supabase || !window.confirm('Rekodkan perjanjian ini sebagai diterima? Rekod penerimaan tidak boleh diundur.')) return
+    if (!agreement || !supabase) return
+    const validationError = validateAgreementAcceptance(acceptanceMethod, acceptanceNote, Boolean(agreement.signed_copy_path))
+    if (validationError) { setError(validationError); return }
+    if (!acceptanceConfirmed) { setError('Sahkan bahawa bukti menunjukkan persetujuan pelanggan terhadap nombor perjanjian dan revisi ini.'); return }
+    if (!window.confirm('Rekodkan perjanjian ini sebagai diterima? Pastikan bukti merujuk nombor perjanjian dan revisi yang tepat. Rekod ini tidak boleh diundur.')) return
     await run(async () => {
       const { data, error: acceptError } = await supabase!.rpc('accept_project_agreement', {
         p_agreement_id: agreement.id,
@@ -200,6 +225,7 @@ export function AgreementPage({ projectId }: { projectId: string }) {
       })
       if (acceptError) throw acceptError
       setAgreement(data)
+      setAcceptanceConfirmed(false)
       setNotice('Penerimaan pelanggan telah direkod. Pengaktifan projek masih perlu dibuat secara berasingan.')
     }, 'Penerimaan tidak dapat direkodkan.')
   }
@@ -230,6 +256,11 @@ export function AgreementPage({ projectId }: { projectId: string }) {
       {error && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
       {notice && <p role="status" className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />{notice}</p>}
 
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 sm:p-6">
+        <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-800">Semakan kontrak</p><h2 className="mt-1 text-xl font-black text-slate-950">Dokumen A4 dengan terma standard terkunci</h2><p className="mt-2 text-sm leading-6 text-slate-700">Versi yang dikeluarkan akan membekukan pihak, skop, nilai, jadual bayaran, terma standard dan terma khusus. Pastikan semua butiran benar serta simpan bukti tandatangan atau persetujuan. Bagi projek kompleks, bernilai tinggi atau berisiko, dapatkan semakan peguam Malaysia sebelum pelanggan menerima dokumen.</p></div></div>
+        {editable && legalReadinessWarnings.length > 0 && <div className="mt-4 rounded-2xl border border-amber-300 bg-white p-4"><p className="flex items-center gap-2 text-sm font-black text-amber-900"><AlertTriangle className="h-5 w-5" />Lengkapkan untuk identiti kontraktor yang lebih kukuh</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">{legalReadinessWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
+      </section>
+
       <section className="rounded-3xl border border-blue-200 bg-blue-50 p-4 sm:p-6">
         <div className="flex items-start gap-3"><FileCheck2 className="mt-0.5 h-6 w-6 text-blue-700" /><div><p className="text-sm font-bold text-blue-700">Data diisi automatik</p><h2 className="mt-1 text-xl font-black text-blue-950">Pihak, tapak & nilai kontrak</h2></div></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2"><Summary label="Pelanggan" value={project.client_name} /><Summary label="Nilai kontrak semasa" value={formatMoney(Number(project.current_contract_amount))} /><Summary label="Alamat projek" value={projectAddress(project)} wide /><Summary label="Sebutharga diterima" value={`${project.quotation_no} Rev ${project.quotation_revision_no}`} /></div>
@@ -240,10 +271,10 @@ export function AgreementPage({ projectId }: { projectId: string }) {
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Field label="Tarikh perjanjian *"><input type="date" disabled={!editable} value={form.issue_date} onChange={(event) => patchForm('issue_date', event.target.value)} className="field-control" /></Field>
           <Field label="Tajuk *"><input disabled={!editable} value={form.title} onChange={(event) => patchForm('title', event.target.value)} className="field-control" /></Field>
-          <Field label="Tempoh kerja / sasaran" wide><textarea disabled={!editable} value={form.work_duration_text} onChange={(event) => patchForm('work_duration_text', event.target.value)} placeholder="Contoh: 12 minggu dari tarikh mula yang dipersetujui." className="field-control min-h-24" /></Field>
+          <Field label="Tempoh kerja / sasaran *" wide><textarea disabled={!editable} value={form.work_duration_text} onChange={(event) => patchForm('work_duration_text', event.target.value)} placeholder="Contoh: 12 minggu dari tarikh mula bertulis, tertakluk kepada pelanjutan masa yang diluluskan." className="field-control min-h-24" /></Field>
           <Field label="Barang dibekalkan pelanggan" wide><textarea disabled={!editable} value={form.client_supplied_items} onChange={(event) => patchForm('client_supplied_items', event.target.value)} placeholder="Kosongkan jika tiada." className="field-control min-h-24" /></Field>
           <Field label="Pengecualian kerja" wide><textarea disabled={!editable} value={form.exclusions} onChange={(event) => patchForm('exclusions', event.target.value)} placeholder="Nyatakan kerja yang tidak termasuk, jika ada." className="field-control min-h-24" /></Field>
-          <Field label="Kecacatan / waranti yang dipersetujui" wide><textarea disabled={!editable} value={form.defect_terms} onChange={(event) => patchForm('defect_terms', event.target.value)} placeholder="Masukkan hanya tempoh dan syarat yang telah dipersetujui." className="field-control min-h-24" /></Field>
+          <Field label="Kecacatan / waranti yang dipersetujui *" wide><textarea disabled={!editable} value={form.defect_terms} onChange={(event) => patchForm('defect_terms', event.target.value)} placeholder="Contoh: Tempoh liabiliti kecacatan 90 hari dari tarikh siap praktikal bagi mutu kerja Kontraktor." className="field-control min-h-24" /></Field>
           <Field label="Terma tambahan" wide><textarea disabled={!editable} value={form.additional_terms} onChange={(event) => patchForm('additional_terms', event.target.value)} placeholder="Terma tambahan lain, jika ada." className="field-control min-h-28" /></Field>
         </div>
       </section>
@@ -264,11 +295,13 @@ export function AgreementPage({ projectId }: { projectId: string }) {
       </section>
 
       {agreement?.status === 'issued' && <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 sm:p-6">
-        <div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-6 w-6 text-emerald-700" /><div><p className="text-sm font-bold text-emerald-700">Bukti persetujuan pelanggan</p><h2 className="mt-1 text-xl font-black">Rekod penerimaan</h2><p className="mt-1 text-sm leading-6 text-slate-600">Penerimaan tidak mengaktifkan projek secara automatik.</p></div></div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Kaedah"><select value={acceptanceMethod} onChange={(event) => setAcceptanceMethod(event.target.value as AgreementAcceptanceMethod)} className="field-control"><option value="whatsapp">Pengesahan bertulis WhatsApp</option><option value="physical">Tandatangan fizikal</option><option value="uploaded">Salinan ditandatangani dimuat naik</option></select></Field><Field label="Catatan / rujukan"><input value={acceptanceNote} onChange={(event) => setAcceptanceNote(event.target.value)} placeholder="Tarikh, nama atau rujukan mesej" className="field-control" /></Field></div>
-        <label className="mt-4 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 text-sm font-black text-emerald-800 sm:w-fit"><Upload className="h-5 w-5" />Muat Naik Salinan Ditandatangani<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadSignedCopy(file); event.currentTarget.value = '' }} /></label>
-        {agreement.signed_copy_path && <p className="mt-3 text-xs font-bold text-emerald-800">Salinan private telah dilampirkan.</p>}
-        <button type="button" disabled={busy || (acceptanceMethod === 'uploaded' && !agreement.signed_copy_path)} onClick={() => void acceptAgreement()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white disabled:opacity-50 sm:w-auto"><CheckCircle2 className="h-5 w-5" />Rekod Sebagai Diterima</button>
+        <div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-6 w-6 text-emerald-700" /><div><p className="text-sm font-bold text-emerald-700">Bukti persetujuan pelanggan</p><h2 className="mt-1 text-xl font-black">Rekod penerimaan</h2><p className="mt-1 text-sm leading-6 text-slate-600">Rekod dalaman ini mesti disokong bukti yang mengenal pasti pelanggan, nombor perjanjian dan revisi. Penerimaan tidak mengaktifkan projek secara automatik.</p></div></div>
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-white p-4 text-sm leading-6 text-slate-700"><p className="font-black text-emerald-900">Ayat pengesahan yang dicadangkan</p><p className="mt-1">“Saya {project.client_name} bersetuju dengan {agreement.agreement_no} Rev {agreement.revision_no} bertarikh {form.issue_date}, termasuk skop, nilai {formatMoney(Number(project.current_contract_amount))}, jadual bayaran dan semua termanya.”</p></div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Kaedah *"><select value={acceptanceMethod} onChange={(event) => { setAcceptanceMethod(event.target.value as AgreementAcceptanceMethod); setAcceptanceConfirmed(false) }} className="field-control"><option value="whatsapp">WhatsApp + bukti mesej</option><option value="physical">Tandatangan fizikal (asal disimpan)</option><option value="uploaded">Salinan bertandatangan dimuat naik</option></select></Field><Field label="Catatan bukti *"><input value={acceptanceNote} onChange={(event) => setAcceptanceNote(event.target.value)} placeholder="Nama penerima, tarikh/masa dan rujukan mesej atau salinan" className="field-control" /></Field></div>
+        <label className="mt-4 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 text-sm font-black text-emerald-800 sm:w-fit"><Upload className="h-5 w-5" />Muat Naik Bukti (PDF / Imej)<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadSignedCopy(file); event.currentTarget.value = '' }} /></label>
+        {agreement.signed_copy_path && <p className="mt-3 text-xs font-bold text-emerald-800">Bukti private telah dilampirkan pada rekod perjanjian.</p>}
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-sm font-semibold leading-6 text-slate-700"><input type="checkbox" checked={acceptanceConfirmed} onChange={(event) => setAcceptanceConfirmed(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" /><span>Saya mengesahkan bukti menunjukkan pelanggan bersetuju dengan <strong>{agreement.agreement_no} Rev {agreement.revision_no}</strong>, bukan versi lain.</span></label>
+        <button type="button" disabled={busy || !acceptanceConfirmed || !acceptanceNote.trim() || ((acceptanceMethod === 'whatsapp' || acceptanceMethod === 'uploaded') && !agreement.signed_copy_path)} onClick={() => void acceptAgreement()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white disabled:opacity-50 sm:w-auto"><CheckCircle2 className="h-5 w-5" />Rekod Sebagai Diterima</button>
       </section>}
 
       {agreement?.status === 'accepted' && <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 sm:p-6"><div className="flex items-start gap-3"><FileCheck2 className="mt-0.5 h-6 w-6 text-emerald-700" /><div><p className="text-sm font-bold text-emerald-700">Perjanjian diterima</p><h2 className="mt-1 text-xl font-black">{agreementAcceptanceLabel(agreement.acceptance_method)}</h2><p className="mt-1 text-sm text-slate-600">{agreement.acceptance_note || 'Tiada catatan tambahan.'}</p></div></div><button type="button" disabled={busy} onClick={() => void createInitialInvoice()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white sm:w-auto"><ReceiptText className="h-5 w-5" />{agreement.initial_invoice_id ? 'Buka Invois Bayaran Pertama' : `Jana Invois Bayaran Pertama${firstStage ? ` · ${formatMoney(Number(firstStage.amount))}` : ''}`}</button></section>}

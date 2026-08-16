@@ -1,4 +1,5 @@
 import type { Database } from '../types/database'
+import type { AgreementDocumentReference } from './agreementTerms'
 
 export type ProjectAgreement = Database['public']['Tables']['project_agreements']['Row']
 export type ProjectAgreementSnapshot = Database['public']['Tables']['project_agreement_snapshots']['Row']
@@ -16,6 +17,7 @@ export type AgreementForm = {
 }
 
 export type AgreementSnapshotData = {
+  document?: AgreementDocumentReference
   agreement: Pick<AgreementForm, keyof AgreementForm> & { agreement_no: string; revision_no: number }
   company: {
     legal_name: string
@@ -23,11 +25,15 @@ export type AgreementSnapshotData = {
     registration_no: string | null
     owner_name: string
     phone: string
+    email?: string | null
     address_line_1: string | null
     address_line_2: string | null
     postcode: string | null
     city: string | null
     state: string
+    cidb_registration_no?: string | null
+    cidb_grade?: string | null
+    cidb_expiry_date?: string | null
     signature_path: string | null
     stamp_path: string | null
   }
@@ -133,6 +139,33 @@ export function validateAgreementForm(form: AgreementForm) {
   if (!form.title.trim()) return 'Tajuk perjanjian mesti diisi.'
   if (!form.issue_date) return 'Tarikh perjanjian mesti diisi.'
   return null
+}
+
+export function validateAgreementIssueForm(form: AgreementForm) {
+  const draftError = validateAgreementForm(form)
+  if (draftError) return draftError
+  if (!form.work_duration_text.trim()) return 'Tempoh kerja / sasaran mesti dinyatakan sebelum perjanjian dikeluarkan.'
+  if (!form.defect_terms.trim()) return 'Tempoh dan syarat kecacatan / waranti mesti dinyatakan sebelum perjanjian dikeluarkan.'
+  return null
+}
+
+export function validateAgreementAcceptance(method: AgreementAcceptanceMethod, note: string, hasEvidence: boolean) {
+  if (!note.trim()) return 'Catatan bukti mesti menyatakan nama, tarikh dan rujukan penerimaan.'
+  if ((method === 'whatsapp' || method === 'uploaded') && !hasEvidence) {
+    return method === 'whatsapp'
+      ? 'Muat naik tangkap layar atau eksport mesej WhatsApp sebelum merekod penerimaan.'
+      : 'Muat naik salinan perjanjian yang ditandatangani sebelum merekod penerimaan.'
+  }
+  return null
+}
+
+export function agreementErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
+  return fallback
 }
 
 export function validateAgreementDocument(file: File) {
