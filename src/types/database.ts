@@ -436,6 +436,8 @@ export type Database = {
           measurement_text: string | null
           calculation_method: string
           unit: string
+          length_value: number | null
+          width_value: number | null
           quantity: number
           rate: number
           amount: number | null
@@ -458,6 +460,8 @@ export type Database = {
           measurement_text?: string | null
           calculation_method?: string
           unit: string
+          length_value?: number | null
+          width_value?: number | null
           quantity?: number
           rate?: number
           sort_order?: number
@@ -474,6 +478,8 @@ export type Database = {
           measurement_text?: string | null
           calculation_method?: string
           unit?: string
+          length_value?: number | null
+          width_value?: number | null
           quantity?: number
           rate?: number
           sort_order?: number
@@ -1365,6 +1371,13 @@ export type Database = {
           p_quotation_id: number
           p_revision_no: number
           p_snapshot_data: Json
+        }
+        Returns: Database['public']['Tables']['quotations']['Row']
+      }
+      save_quotation_draft: {
+        Args: {
+          p_quotation_id: number | null
+          p_draft: Json
         }
         Returns: Database['public']['Tables']['quotations']['Row']
       }

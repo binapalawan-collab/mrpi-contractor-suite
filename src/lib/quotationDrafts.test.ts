@@ -20,9 +20,11 @@ function itemDraft(): QuotationDraftItem {
     item_name: 'Tabletop dapur',
     description: 'Membina tabletop konkrit',
     measurement_text: '12 kaki',
-    calculation_method: 'length',
-    unit: 'kaki',
-    quantity: '12',
+  calculation_method: 'length',
+  unit: 'kaki',
+  length_value: '12',
+  width_value: '',
+  quantity: '12',
     rate: '230.00',
   }
 }

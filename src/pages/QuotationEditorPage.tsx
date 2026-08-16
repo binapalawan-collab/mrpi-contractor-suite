@@ -9,15 +9,14 @@ import {
   createEmptyQuotationDraft,
   quotationDraftFromRows,
   quotationDraftTotal,
+  quotationItemQuantity,
+  type QuotationSnapshot,
   quotationSnapshotData,
   whatsappNumber,
-  type Quotation,
   type QuotationDraft,
-  type QuotationDraftItem,
-  type QuotationDraftSection,
 } from '../lib/quotation'
 import { clearQuotationDraft, readQuotationDraft, saveQuotationDraft } from '../lib/quotationDrafts'
-import { isValidPhone, normalizePhone, nullableTrimmed, type Client, type SiteVisit, type SiteVisitArea, type SiteVisitEntry } from '../lib/siteVisit'
+import { isValidPhone, normalizePhone, type Client, type SiteVisit, type SiteVisitArea, type SiteVisitEntry } from '../lib/siteVisit'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
@@ -32,6 +31,7 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [sourceAreas, setSourceAreas] = useState<SiteVisitArea[]>([])
   const [sourceEntries, setSourceEntries] = useState<SiteVisitEntry[]>([])
+  const [snapshots, setSnapshots] = useState<QuotationSnapshot[]>([])
   const [draft, setDraft] = useState<QuotationDraft | null>(null)
   const [draftStorageId, setDraftStorageId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -105,17 +105,19 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
           setLoading(false)
           return
         }
-        const [sectionResult, itemResult] = await Promise.all([
+        const [sectionResult, itemResult, snapshotResult] = await Promise.all([
           client.from('quotation_sections').select('*').eq('quotation_id', quoteRow.id).eq('company_id', companyRow.id).order('sort_order').order('id'),
           client.from('quotation_items').select('*').eq('quotation_id', quoteRow.id).eq('company_id', companyRow.id).order('sort_order').order('id'),
+          client.from('quotation_snapshots').select('*').eq('quotation_id', quoteRow.id).eq('company_id', companyRow.id).order('revision_no'),
         ])
         if (!mounted) return
-        const quoteLoadError = sectionResult.error ?? itemResult.error
+        const quoteLoadError = sectionResult.error ?? itemResult.error ?? snapshotResult.error
         if (quoteLoadError) {
           setError(quoteLoadError.message)
           setLoading(false)
           return
         }
+        setSnapshots(snapshotResult.data ?? [])
 
         const storageId = `quote:${quoteRow.id}`
         const databaseDraft = quotationDraftFromRows(quoteRow, sectionResult.data ?? [], itemResult.data ?? [])
@@ -224,165 +226,39 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
     setBusy(true)
     try {
       const phoneNormalized = normalizePhone(draft.header.client_phone)
-      const selectedClient = draft.header.client_id ? clients.find((client) => client.id === draft.header.client_id) ?? null : null
-      let savedClient = clients.find((client) => client.phone_normalized === phoneNormalized) ?? selectedClient
-
-      const clientValues = {
-        name: draft.header.client_name.trim(),
-        phone: draft.header.client_phone.trim(),
-        phone_normalized: phoneNormalized,
-        email: nullableTrimmed(draft.header.client_email),
-      }
-      if (savedClient) {
-        const { data, error: clientError } = await supabase
-          .from('clients')
-          .update(clientValues)
-          .eq('id', savedClient.id)
-          .eq('company_id', company.id)
-          .select('*')
-          .single()
-        if (clientError) throw clientError
-        savedClient = data
-      } else {
-        const { data, error: clientError } = await supabase
-          .from('clients')
-          .insert({ ...clientValues, company_id: company.id, owner_user_id: user.id })
-          .select('*')
-          .single()
-        if (clientError) throw clientError
-        savedClient = data
-      }
-      setClients((current) => [...current.filter((client) => client.id !== savedClient.id), savedClient].sort((a, b) => a.name.localeCompare(b.name, 'ms')))
-
-      const quotationValues = {
-        client_id: savedClient.id,
-        site_visit_id: draft.source_site_visit_id,
-        draft_key: draft.draft_key,
-        quotation_no: draft.header.quotation_no.trim(),
-        quotation_date: draft.header.quotation_date,
-        language: draft.header.language,
-        client_name: draft.header.client_name.trim(),
-        client_phone: draft.header.client_phone.trim(),
-        client_email: nullableTrimmed(draft.header.client_email),
-        project_title: draft.header.project_title.trim(),
-        address_line_1: draft.header.address_line_1.trim(),
-        address_line_2: nullableTrimmed(draft.header.address_line_2),
-        postcode: nullableTrimmed(draft.header.postcode),
-        city: draft.header.city.trim(),
-        state: draft.header.state.trim(),
-        country_code: 'MY',
-        validity_days: Number(draft.header.validity_days),
-        notes: nullableTrimmed(draft.header.notes),
-      }
-
-      let quoteRow: Quotation
-      if (draft.quotation_id) {
-        const { data, error: quotationError } = await supabase
-          .from('quotations')
-          .update(quotationValues)
-          .eq('id', draft.quotation_id)
-          .eq('company_id', company.id)
-          .select('*')
-          .single()
-        if (quotationError) throw quotationError
-        quoteRow = data
-      } else {
-        const { data, error: quotationError } = await supabase
-          .from('quotations')
-          .insert({ ...quotationValues, company_id: company.id, owner_user_id: user.id })
-          .select('*')
-          .single()
-        if (quotationError) throw quotationError
-        quoteRow = data
-      }
-
-      const [existingSectionResult, existingItemResult] = await Promise.all([
-        supabase.from('quotation_sections').select('id').eq('quotation_id', quoteRow.id).eq('company_id', company.id),
-        supabase.from('quotation_items').select('id').eq('quotation_id', quoteRow.id).eq('company_id', company.id),
-      ])
-      const existingError = existingSectionResult.error ?? existingItemResult.error
-      if (existingError) throw existingError
-
-      const savedSections: QuotationDraftSection[] = []
-      for (const [sectionIndex, section] of draft.sections.entries()) {
-        const sectionValues = {
-          name: section.name.trim(),
-          source_site_visit_id: section.source_site_visit_id,
-          source_site_visit_area_id: section.source_site_visit_area_id,
+      const payload = {
+        ...draft,
+        header: { ...draft.header, client_phone_normalized: phoneNormalized },
+        sections: draft.sections.map((section, sectionIndex) => ({
+          ...section,
           sort_order: (sectionIndex + 1) * 10,
-        }
-        let savedSection
-        if (section.id) {
-          const { data, error: sectionError } = await supabase.from('quotation_sections').update(sectionValues).eq('id', section.id).eq('quotation_id', quoteRow.id).eq('company_id', company.id).select('*').single()
-          if (sectionError) throw sectionError
-          savedSection = data
-        } else {
-          const { data, error: sectionError } = await supabase.from('quotation_sections').insert({ ...sectionValues, quotation_id: quoteRow.id, company_id: company.id, owner_user_id: user.id }).select('*').single()
-          if (sectionError) throw sectionError
-          savedSection = data
-        }
-
-        const savedItems: QuotationDraftItem[] = []
-        for (const [itemIndex, item] of section.items.entries()) {
-          const itemValues = {
-            catalog_item_id: item.catalog_item_id,
-            source_site_visit_id: item.source_site_visit_id,
-            source_site_visit_area_id: item.source_site_visit_area_id,
-            source_site_visit_entry_id: item.source_site_visit_entry_id,
-            item_name: item.item_name.trim(),
-            description: item.description.trim(),
-            measurement_text: nullableTrimmed(item.measurement_text),
-            calculation_method: item.calculation_method,
-            unit: item.unit.trim(),
-            quantity: Number(item.quantity),
+          items: section.items.map((item, itemIndex) => ({
+            ...item,
+            measurement_text: publicMeasurementText(item.measurement_text, item.source_site_visit_entry_id, sourceEntries),
+            quantity: quotationItemQuantity(item),
             rate: Number(item.rate),
             sort_order: (itemIndex + 1) * 10,
-          }
-          let savedItem
-          if (item.id) {
-            const { data, error: itemError } = await supabase.from('quotation_items').update(itemValues).eq('id', item.id).eq('quotation_id', quoteRow.id).eq('company_id', company.id).select('*').single()
-            if (itemError) throw itemError
-            savedItem = data
-          } else {
-            const { data, error: itemError } = await supabase.from('quotation_items').insert({ ...itemValues, quotation_id: quoteRow.id, section_id: savedSection.id, company_id: company.id, owner_user_id: user.id }).select('*').single()
-            if (itemError) throw itemError
-            savedItem = data
-          }
-          savedItems.push({ ...item, id: savedItem.id, rate: Number(savedItem.rate).toFixed(2), quantity: String(savedItem.quantity) })
-        }
-        savedSections.push({ ...section, id: savedSection.id, items: savedItems })
+          })),
+        })),
       }
+      const { data: refreshedQuote, error: saveError } = await supabase.rpc('save_quotation_draft', {
+        p_quotation_id: draft.quotation_id,
+        p_draft: payload,
+      })
+      if (saveError) throw saveError
 
-      const retainedItemIds = new Set(savedSections.flatMap((section) => section.items.flatMap((item) => item.id ? [item.id] : [])))
-      const itemIdsToDelete = (existingItemResult.data ?? []).map((row) => row.id).filter((id) => !retainedItemIds.has(id))
-      if (itemIdsToDelete.length) {
-        const { error: deleteError } = await supabase.from('quotation_items').delete().in('id', itemIdsToDelete).eq('quotation_id', quoteRow.id).eq('company_id', company.id)
-        if (deleteError) throw deleteError
-      }
-      const retainedSectionIds = new Set(savedSections.flatMap((section) => section.id ? [section.id] : []))
-      const sectionIdsToDelete = (existingSectionResult.data ?? []).map((row) => row.id).filter((id) => !retainedSectionIds.has(id))
-      if (sectionIdsToDelete.length) {
-        const { error: deleteError } = await supabase.from('quotation_sections').delete().in('id', sectionIdsToDelete).eq('quotation_id', quoteRow.id).eq('company_id', company.id)
-        if (deleteError) throw deleteError
-      }
-
-      const { data: refreshedQuote, error: refreshError } = await supabase.from('quotations').select('*').eq('id', quoteRow.id).eq('company_id', company.id).single()
+      const [savedClientResult, sectionResult, itemResult] = await Promise.all([
+        supabase.from('clients').select('*').eq('id', refreshedQuote.client_id).eq('company_id', company.id).single(),
+        supabase.from('quotation_sections').select('*').eq('quotation_id', refreshedQuote.id).eq('company_id', company.id).order('sort_order').order('id'),
+        supabase.from('quotation_items').select('*').eq('quotation_id', refreshedQuote.id).eq('company_id', company.id).order('sort_order').order('id'),
+      ])
+      const refreshError = savedClientResult.error ?? sectionResult.error ?? itemResult.error
       if (refreshError) throw refreshError
+      const savedClient = savedClientResult.data
+      if (!savedClient) throw new Error('Pelanggan yang disimpan tidak ditemui.')
+      setClients((current) => [...current.filter((client) => client.id !== savedClient.id), savedClient].sort((a, b) => a.name.localeCompare(b.name, 'ms')))
 
-      const nextDraft: QuotationDraft = {
-        ...draft,
-        quotation_id: refreshedQuote.id,
-        status: refreshedQuote.status,
-        revision_no: refreshedQuote.revision_no,
-        header: { ...draft.header, client_id: savedClient.id, quotation_no: refreshedQuote.quotation_no },
-        sections: savedSections,
-        saved_at: refreshedQuote.updated_at,
-      }
-
-      if (nextDraft.source_site_visit_id) {
-        const { error: visitError } = await supabase.from('site_visits').update({ status: 'converted' }).eq('id', nextDraft.source_site_visit_id).eq('company_id', company.id)
-        if (visitError) throw visitError
-      }
+      const nextDraft = quotationDraftFromRows(refreshedQuote, sectionResult.data ?? [], itemResult.data ?? [])
 
       const nextStorageId = `quote:${refreshedQuote.id}`
       saveQuotationDraft(user.id, nextStorageId, nextDraft)
@@ -419,6 +295,9 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
       const nextDraft = { ...saved, status: sentQuote.status, saved_at: sentQuote.updated_at }
       setDraft(nextDraft)
       saveQuotationDraft(user.id, `quote:${sentQuote.id}`, nextDraft)
+      const { data: snapshotRows, error: snapshotError } = await supabase.from('quotation_snapshots').select('*').eq('quotation_id', sentQuote.id).eq('company_id', company.id).order('revision_no')
+      if (snapshotError) throw snapshotError
+      setSnapshots(snapshotRows ?? [])
       setNotice('Sebutharga telah ditandakan sebagai dihantar. Revision ini kini dikunci.')
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Status dihantar tidak dapat disimpan.')
@@ -512,6 +391,7 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
         catalogItems={catalogItems}
         sourceAreas={sourceAreas}
         sourceEntries={sourceEntries}
+        snapshots={snapshots}
         draftOwnerUserId={user?.id ?? ''}
         draftStorageId={draftStorageId}
         editable={draft.status === 'draft'}
@@ -524,7 +404,10 @@ export function QuotationEditorPage({ quotationId }: { quotationId?: string }) {
         onStartRevision={startRevision}
         onAccept={acceptQuotation}
         onContinueAsProject={continueAsProject}
-        onPrint={() => draft.quotation_id && navigate(`/sebutharga/${draft.quotation_id}/cetak`)}
+        onPrint={async () => {
+          const printable = draft.status === 'draft' ? await saveDatabaseDraft() : draft
+          if (printable?.quotation_id) navigate(`/sebutharga/${printable.quotation_id}/cetak`)
+        }}
         onWhatsApp={openWhatsApp}
       />
     </>
@@ -589,9 +472,21 @@ function validateDraft(draft: QuotationDraft) {
     if (!section.name.trim()) return 'Setiap ruangan mesti mempunyai nama.'
     for (const item of section.items) {
       if (!item.item_name.trim() || !item.description.trim() || !item.unit.trim()) return `Lengkapkan item dalam ruangan ${section.name}.`
-      if (!(Number(item.quantity) > 0) || !(Number(item.rate) >= 0)) return `Semak kuantiti dan kadar item ${item.item_name}.`
+      if (item.calculation_method === 'area' && !item.id && (!Number(item.length_value) || !Number(item.width_value))) return `Masukkan panjang dan lebar untuk item ${item.item_name}.`
+      if (item.calculation_method === 'length' && !item.id && !Number(item.length_value)) return `Masukkan panjang untuk item ${item.item_name}.`
+      if (!(quotationItemQuantity(item) ?? 0) || !(Number(item.rate) >= 0)) return `Semak kuantiti dan kadar item ${item.item_name}.`
     }
   }
   if (quotationDraftTotal(draft) > 99_999_999_999.99) return 'Jumlah sebutharga melebihi had sistem.'
   return ''
+}
+
+function publicMeasurementText(value: string, sourceEntryId: number | null, entries: SiteVisitEntry[]) {
+  if (!sourceEntryId) return value.trim()
+  const internalNote = entries.find((entry) => entry.id === sourceEntryId)?.note_text.trim()
+  if (!internalNote) return value.trim()
+  const trimmed = value.trim()
+  if (trimmed === internalNote) return ''
+  if (trimmed.startsWith(`${internalNote} · `)) return trimmed.slice(internalNote.length + 3).trim()
+  return trimmed
 }

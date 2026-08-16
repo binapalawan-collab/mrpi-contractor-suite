@@ -37,6 +37,8 @@ export type QuotationDraftItem = {
   measurement_text: string
   calculation_method: CalculationMethod
   unit: string
+  length_value: string
+  width_value: string
   quantity: string
   rate: string
 }
@@ -114,20 +116,32 @@ export function buildProjectTitle(language: QuotationLanguage, address: string) 
   return place ? `CADANGAN KERJA UBAH SUAI DI ${place}` : 'CADANGAN KERJA UBAH SUAI'
 }
 
-export function parseNonNegativeNumber(value: string) {
-  const normalized = value.replace(/,/g, '').trim()
+export function parseNonNegativeNumber(value: string | null | undefined) {
+  const normalized = (value ?? '').replace(/,/g, '').trim()
   if (!normalized) return null
   const parsed = Number(normalized)
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
 }
 
-export function parsePositiveNumber(value: string) {
+export function parsePositiveNumber(value: string | null | undefined) {
   const parsed = parseNonNegativeNumber(value)
   return parsed !== null && parsed > 0 ? parsed : null
 }
 
-export function quotationItemAmount(item: Pick<QuotationDraftItem, 'quantity' | 'rate'>) {
-  const quantity = parsePositiveNumber(item.quantity)
+export function quotationItemQuantity(item: Pick<QuotationDraftItem, 'calculation_method' | 'length_value' | 'width_value' | 'quantity'>) {
+  const legacyQuantity = parsePositiveNumber(item.quantity)
+  if (item.calculation_method === 'area') {
+    const length = parsePositiveNumber(item.length_value)
+    const width = parsePositiveNumber(item.width_value)
+    return length !== null && width !== null ? Math.round(length * width * 1000) / 1000 : legacyQuantity
+  }
+  if (item.calculation_method === 'length') return parsePositiveNumber(item.length_value) ?? legacyQuantity
+  if (item.calculation_method === 'lsum') return 1
+  return legacyQuantity
+}
+
+export function quotationItemAmount(item: Pick<QuotationDraftItem, 'calculation_method' | 'length_value' | 'width_value' | 'quantity' | 'rate'>) {
+  const quantity = quotationItemQuantity(item)
   const rate = parseNonNegativeNumber(item.rate)
   if (quantity === null || rate === null) return 0
   return Math.round(quantity * rate * 100) / 100
@@ -169,6 +183,12 @@ export function quotationStatusLabel(status: string) {
   if (status === 'expired') return 'Tamat tempoh'
   if (status === 'archived') return 'Diarkibkan'
   return 'Draf'
+}
+
+export function quotationSnapshotTotal(snapshot: QuotationSnapshot) {
+  if (typeof snapshot.snapshot_data !== 'object' || snapshot.snapshot_data === null || Array.isArray(snapshot.snapshot_data)) return 0
+  const value = snapshot.snapshot_data.total_amount
+  return typeof value === 'number' ? value : Number(value) || 0
 }
 
 export function calculationMethodLabel(method: CalculationMethod, language: QuotationLanguage = 'ms') {
@@ -231,6 +251,8 @@ export function quotationDraftFromRows(
             measurement_text: item.measurement_text ?? '',
             calculation_method: isCalculationMethod(item.calculation_method) ? item.calculation_method : 'qty',
             unit: item.unit,
+            length_value: item.length_value === null ? '' : String(item.length_value),
+            width_value: item.width_value === null ? '' : String(item.width_value),
             quantity: String(item.quantity),
             rate: Number(item.rate).toFixed(2),
           })),
@@ -291,7 +313,9 @@ export function quotationSnapshotData(draft: QuotationDraft): Json {
         measurement_text: item.measurement_text,
         calculation_method: item.calculation_method,
         unit: item.unit,
-        quantity: parsePositiveNumber(item.quantity) ?? 0,
+        length_value: parsePositiveNumber(item.length_value),
+        width_value: parsePositiveNumber(item.width_value),
+        quantity: quotationItemQuantity(item) ?? 0,
         rate: parseNonNegativeNumber(item.rate) ?? 0,
         amount: quotationItemAmount(item),
       })),

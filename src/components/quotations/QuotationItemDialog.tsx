@@ -8,6 +8,7 @@ import {
   parseNonNegativeNumber,
   parsePositiveNumber,
   quotationItemAmount,
+  quotationItemQuantity,
   type CalculationMethod,
   type QuotationDraftItem,
 } from '../../lib/quotation'
@@ -38,7 +39,6 @@ function calculationMethodFromUnit(unit: string): CalculationMethod {
 }
 
 function blankItem(sourceNote: SourceNote | null): QuotationDraftItem {
-  const measurement = [sourceNote?.note_text, sourceNote?.measurement_text].filter(Boolean).join(' · ')
   return {
     local_id: localId(),
     id: null,
@@ -48,16 +48,21 @@ function blankItem(sourceNote: SourceNote | null): QuotationDraftItem {
     source_site_visit_entry_id: null,
     item_name: '',
     description: '',
-    measurement_text: measurement,
+    measurement_text: sourceNote?.measurement_text ?? '',
     calculation_method: 'qty',
     unit: 'unit',
+    length_value: '',
+    width_value: '',
     quantity: '1',
     rate: '0.00',
   }
 }
 
 export function QuotationItemDialog({ categories, catalogItems, initialItem, initialDraft, sourceNote, onClose, onDraftChange, onSave }: Props) {
-  const [item, setItem] = useState<QuotationDraftItem>(() => initialDraft?.item ?? initialItem ?? blankItem(sourceNote))
+  const [item, setItem] = useState<QuotationDraftItem>(() => {
+    const restored = initialDraft?.item ?? initialItem ?? blankItem(sourceNote)
+    return { ...restored, length_value: restored.length_value ?? '', width_value: restored.width_value ?? '' }
+  })
   const [mode, setMode] = useState<'catalog' | 'manual'>(() => initialDraft?.mode ?? (initialItem ? 'manual' : 'catalog'))
   const [search, setSearch] = useState(() => initialDraft?.search ?? '')
   const [categoryId, setCategoryId] = useState<number | 'all'>(() => initialDraft?.category_id ?? 'all')
@@ -110,6 +115,8 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, ini
       description: catalogItem.description,
       calculation_method: method,
       unit: method === 'lsum' ? 'L/SUM' : catalogItem.unit,
+      length_value: method === 'area' || method === 'length' ? current.length_value : '',
+      width_value: method === 'area' ? current.width_value : '',
       quantity: method === 'lsum' ? '1' : current.quantity || '1',
       rate: Number(catalogItem.rate).toFixed(2),
     }))
@@ -118,10 +125,20 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, ini
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const quantity = parsePositiveNumber(item.quantity)
+    const length = parsePositiveNumber(item.length_value)
+    const width = parsePositiveNumber(item.width_value)
+    const quantity = quotationItemQuantity(item)
     const rate = parseNonNegativeNumber(item.rate)
     if (!item.item_name.trim() || !item.description.trim() || !item.unit.trim()) {
       setError('Nama, keterangan dan unit item mesti diisi.')
+      return
+    }
+    if (item.calculation_method === 'area' && (length === null || width === null) && !item.id) {
+      setError('Masukkan panjang dan lebar untuk mengira keluasan KPS.')
+      return
+    }
+    if (item.calculation_method === 'length' && length === null && !item.id) {
+      setError('Masukkan panjang untuk item ini.')
       return
     }
     if (quantity === null) {
@@ -138,6 +155,8 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, ini
       description: item.description.trim(),
       measurement_text: item.measurement_text.trim(),
       unit: item.unit.trim(),
+      length_value: item.calculation_method === 'area' || item.calculation_method === 'length' ? item.length_value.trim() : '',
+      width_value: item.calculation_method === 'area' ? item.width_value.trim() : '',
       quantity: String(quantity),
       rate: rate.toFixed(2),
     })
@@ -227,15 +246,23 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, ini
                   <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Enter, baris kosong dan bullet seperti •, - atau nombor akan dikekalkan dalam PDF.</p>
                 </label>
                 <label className="block">
-                  <span className="field-label">Ukuran / rujukan tapak</span>
+                  <span className="field-label">Ukuran untuk pelanggan / PDF</span>
                   <textarea value={item.measurement_text} onChange={(event) => update('measurement_text', event.target.value)} className="field-control min-h-20" placeholder="Pilihan. Contoh: 12 kaki × 8 kaki" />
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Hanya maklumat dalam ruang ini dipaparkan pada PDF. Catatan tapak di atas kekal sebagai rujukan dalaman.</p>
                 </label>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="field-label">Cara kira</span>
                     <select value={item.calculation_method} onChange={(event) => {
                       const method = event.target.value as CalculationMethod
-                      setItem((current) => ({ ...current, calculation_method: method, quantity: method === 'lsum' ? '1' : current.quantity, unit: method === 'lsum' ? 'L/SUM' : current.unit }))
+                      setItem((current) => ({
+                        ...current,
+                        calculation_method: method,
+                        length_value: method === 'area' || method === 'length' ? current.length_value : '',
+                        width_value: method === 'area' ? current.width_value : '',
+                        quantity: method === 'lsum' ? '1' : current.quantity,
+                        unit: method === 'area' ? 'KPS' : method === 'length' ? 'kaki' : method === 'lsum' ? 'L/SUM' : current.unit,
+                      }))
                     }} className="field-control">
                       {(['area', 'length', 'qty', 'lsum'] as const).map((method) => <option key={method} value={method}>{calculationMethodLabel(method)}</option>)}
                     </select>
@@ -244,10 +271,20 @@ export function QuotationItemDialog({ categories, catalogItems, initialItem, ini
                     <span className="field-label">Unit</span>
                     <input required value={item.unit} onChange={(event) => update('unit', event.target.value)} className="field-control" placeholder="unit / kps / kaki" />
                   </label>
-                  <label className="block">
-                    <span className="field-label">Kuantiti / ukuran</span>
-                    <input required inputMode="decimal" value={item.quantity} disabled={item.calculation_method === 'lsum'} onChange={(event) => update('quantity', event.target.value)} className="field-control disabled:bg-slate-100" />
-                  </label>
+                  {item.calculation_method === 'area' && <>
+                    <label className="block"><span className="field-label">Panjang</span><input required inputMode="decimal" value={item.length_value} onChange={(event) => update('length_value', event.target.value)} className="field-control" placeholder="Contoh: 12" /></label>
+                    <label className="block"><span className="field-label">Lebar</span><input required inputMode="decimal" value={item.width_value} onChange={(event) => update('width_value', event.target.value)} className="field-control" placeholder="Contoh: 8" /></label>
+                    <label className="block"><span className="field-label">Keluasan dikira</span><input readOnly value={quotationItemQuantity(item) ?? ''} className="field-control bg-slate-100 font-black" /></label>
+                  </>}
+                  {item.calculation_method === 'length' && <label className="block">
+                    <span className="field-label">Panjang</span>
+                    <input required inputMode="decimal" value={item.length_value} onChange={(event) => update('length_value', event.target.value)} className="field-control" placeholder="Contoh: 12" />
+                  </label>}
+                  {item.calculation_method === 'qty' && <label className="block">
+                    <span className="field-label">Kuantiti</span>
+                    <input required inputMode="decimal" value={item.quantity} onChange={(event) => update('quantity', event.target.value)} className="field-control" />
+                  </label>}
+                  {item.calculation_method === 'lsum' && <label className="block"><span className="field-label">Kuantiti</span><input readOnly value="1" className="field-control bg-slate-100" /></label>}
                   <label className="block">
                     <span className="field-label">Kadar (RM)</span>
                     <input required inputMode="decimal" value={item.rate} onChange={(event) => update('rate', event.target.value)} className="field-control" />
