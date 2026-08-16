@@ -142,6 +142,7 @@ export function AgreementPage({ projectId }: { projectId: string }) {
   }
 
   async function issueAgreement() {
+    if (!project) return
     await run(async () => {
       if (!schedule || !stages.length || Math.round(totalPercentage * 1000) / 1000 !== 100) {
         throw new Error('Simpan Jadual Pembayaran lengkap 100% sebelum mengeluarkan perjanjian.')
