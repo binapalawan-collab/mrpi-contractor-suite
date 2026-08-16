@@ -12,7 +12,7 @@
 ## Milestones
 
 1. Foundation, authentication, company profile, catalog, site-visit intake and quotation.
-2. Projects, variation orders, invoices, payments, receipts and finance. Agreements, deposits and payment schedules are deferred until explicitly agreed.
+2. Projects, project agreements, payment schedules, variation orders, invoices, payments, receipts and finance.
 3. Site operations, photos, defects, handover, warranty, notifications and dashboard completion.
 
 ## Agreed main pages
@@ -66,7 +66,19 @@
 - The owner may edit only the operational project name and planned start/end dates.
 - Status moves one way through `Persediaan` → `Dijadualkan` → `Aktif` → `Siap Kerja` → `Diserahkan`; system dates are recorded automatically.
 - Later scope or value changes belong in Variation Orders and never overwrite the accepted baseline.
-- Agreement, deposit and payment-schedule workflows are not included in the current Project module.
+- A project must have an accepted Project Agreement before it can move from `Persediaan` to `Dijadualkan`; acceptance never advances the project status automatically.
+
+## Perjanjian Projek checkpoint
+
+- Each project owns one agreement number derived from its project number, with explicit numbered revisions.
+- Parties, project details, current scope, current contract value and the saved payment schedule are populated from project records.
+- Issuing an agreement captures an immutable server-side snapshot. An issued agreement must be opened as a new revision before editable terms can change.
+- Customer acceptance is recorded as written WhatsApp confirmation, a physical signature or an uploaded signed copy. Customers do not require system access.
+- Signed copies are optional private project documents; WhatsApp confirmation does not require a signed file.
+- Hidden damage is assessed separately and any resulting scope or price change proceeds through an approved Variation Order.
+- The first frozen payment-schedule stage is the initial payment. Once the agreement is accepted, the system can generate one draft invoice using that exact RM amount; no separate deposit ledger is maintained.
+- Agreement acceptance and project activation remain separate deliberate actions.
+- The printable agreement shows the payment grand total only once, after every payment stage.
 
 ## Variation Order checkpoint
 
@@ -92,4 +104,4 @@
 - Invois memaparkan maklumat akaun bank syarikat tetapi kekal tanpa e-mel syarikat dan blok tandatangan. Sebutharga, resit dan Penyata Akaun tidak memaparkan maklumat bank.
 - Jadual pembayaran kini pilihan pada setiap Projek: template 4, 5, 8 tahap atau manual; nama, pencapaian dan peratus boleh diubah tetapi jumlah mesti tepat 100%.
 - Amaun jadual dikira daripada nilai kontrak semasa ketika disimpan. VO tidak mengubah jadual secara senyap; owner mesti menyemak dan menyimpan semula jadual.
-- Agreement dan deposit kekal ditangguhkan sehingga dipersetujui secara khusus.
+- Bayaran pertama projek datang daripada tahap pertama Jadual Pembayaran yang dibekukan bersama Perjanjian Projek. Invoisnya menggunakan amaun RM tetap tanpa mewujudkan lejar deposit berasingan.
