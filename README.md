@@ -2,6 +2,13 @@
 
 Mobile-first contractor operations PWA for company profiles, site visits, quotations, projects and finance.
 
+The repository also contains two independently built PWAs that share the same Supabase identity, company and project records:
+
+- `apps/mrpi-project-expenses`
+- `apps/mrpi-workforce`
+
+See `docs/EXPENSES_WORKFORCE_ARCHITECTURE.md` for data ownership and integration rules.
+
 ## Current checkpoint
 
 - React + TypeScript + Vite foundation

@@ -1,0 +1,11 @@
+export type Company={id:number;owner_user_id:string;legal_name:string;trading_name:string|null}
+export type Project={id:number;company_id:number;owner_user_id:string;project_no:string;project_name:string;client_name:string;status:string}
+export type PayType='daily'|'contract'
+export type AttendanceStatus='present'|'half_day'|'absent'
+export type PaymentMethod='cash'|'bank_transfer'|'cheque'|'other'
+export type Worker={id:number;company_id:number;owner_user_id:string;name:string;pay_type:PayType;default_daily_rate:number|null;notes:string;is_active:boolean;created_at:string;updated_at:string}
+export type Attendance={id:number;worker_id:number;project_id:number|null;company_id:number;owner_user_id:string;attendance_date:string;status:AttendanceStatus;pay_type_snapshot:PayType;daily_rate_snapshot:number;overtime_hours:number;overtime_rate:number;wage_amount:number;wage_payment_id:number|null;notes:string;created_at:string;updated_at:string}
+export type AttendanceDraft={worker_id:number;project_id:number|null;status:AttendanceStatus|null;daily_rate_snapshot:number;overtime_hours:number;overtime_rate:number;notes:string;existing_id:number|null;paid:boolean}
+export type WorkerAdvance={id:number;worker_id:number;project_id:number;advance_date:string;amount:number;payment_method:PaymentMethod;notes:string;applied_wage_payment_id:number|null;created_at:string}
+export type WagePayment={id:number;worker_id:number;project_id:number;period_start:string;period_end:string;payment_date:string;gross_amount:number;advance_deduction:number;net_amount:number;payment_method:PaymentMethod;notes:string;created_at:string}
+export type WorkerBalance={worker_id:number;company_id:number;owner_user_id:string;name:string;pay_type:PayType;default_daily_rate:number|null;is_active:boolean;unpaid_wages:number;unapplied_advances:number;estimated_balance:number}
