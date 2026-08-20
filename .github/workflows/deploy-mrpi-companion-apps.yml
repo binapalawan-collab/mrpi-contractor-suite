@@ -67,6 +67,8 @@ jobs:
             throw new Error("Unexpected Supabase project");
           }
 
+          console.log(`::add-mask::${keys[0]}`);
+
           appendFileSync(
             process.env.GITHUB_ENV,
             `VITE_SUPABASE_URL=${urls[0]}\nVITE_SUPABASE_PUBLISHABLE_KEY=${keys[0]}\n`,
@@ -93,11 +95,12 @@ jobs:
       - name: Ensure Cloudflare Pages projects exist
         shell: bash
         run: |
-          projects_json="$(npx --yes wrangler@4.123.0 pages project list --json)"
-
           for project_name in mrpi-project-expenses mrpi-workforce; do
-            if ! jq -e --arg name "$project_name" 'any(.[]; .name == $name)' <<<"$projects_json" >/dev/null; then
-              npx --yes wrangler@4.123.0 pages project create "$project_name" --production-branch main
+            if ! create_output="$(npx --yes wrangler@4.123.0 pages project create "$project_name" --production-branch main 2>&1)"; then
+              if [[ "$create_output" != *"A project with this name already exists"* ]]; then
+                printf '%s\n' "$create_output"
+                exit 1
+              fi
             fi
           done
 
