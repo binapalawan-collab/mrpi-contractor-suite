@@ -1,4 +1,4 @@
-import { ArrowLeft, LockKeyhole, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Plus, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'wouter'
 import { PageHeader } from '../components/PageHeader'
@@ -27,7 +27,8 @@ export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
   const id = Number(expenseId)
   const [, navigate] = useLocation()
   const [expense, setExpense] = useState<Expense | null>(null)
-  const [project, setProject] = useState<Project | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectId, setProjectId] = useState('')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [date, setDate] = useState('')
   const [category, setCategory] = useState<ExpenseCategory>('materials')
@@ -56,7 +57,8 @@ export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
         throw new Error('Rekod daripada Workforce mesti dibetulkan dalam aplikasi Workforce.')
       }
       setExpense(loadedExpense)
-      setProject(projects.find((item) => item.id === loadedExpense.project_id) ?? null)
+      setProjects(projects.filter((item) => item.company_id === loadedExpense.company_id))
+      setProjectId(String(loadedExpense.project_id))
       setSuppliers(loadedSuppliers)
       setDate(loadedExpense.expense_date)
       setCategory(loadedExpense.category)
@@ -84,6 +86,10 @@ export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!supabase || !expense) return
+    if (!projectId) {
+      setError('Pilih projek expenses.')
+      return
+    }
     const validation = validateExpenseCorrection(items, description, expense.paid_amount)
     if (validation) {
       setError(validation)
@@ -95,6 +101,7 @@ export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
     try {
       const { error: correctionError } = await supabase.rpc('correct_manual_project_expense', {
         p_expense_id: expense.id,
+        p_project_id: Number(projectId),
         p_expense_date: date,
         p_category: category,
         p_description: description.trim(),
@@ -124,21 +131,22 @@ export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
     <PageHeader
       eyebrow="Pembetulan rekod"
       title="Edit expenses"
-      description="Betulkan tarikh, kategori, keterangan, pembekal, item atau jumlah."
+      description="Betulkan projek, tarikh, kategori, keterangan, pembekal, item atau jumlah."
       action={<Link href={`/expenses/${expense.id}`} className="btn-secondary"><ArrowLeft className="h-4 w-4" />Batal</Link>}
     />
     {error && <div className="mb-5"><ErrorBlock message={error} /></div>}
 
     <form onSubmit={submit} className="space-y-5">
       <section className="card p-5">
-        <div className="flex gap-3 rounded-2xl bg-slate-100 p-4">
-          <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+        <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
           <div>
-            <p className="text-sm font-black">{project?.project_no} · {project?.project_name}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">Projek dikunci untuk menjaga rekod bayaran. Jika projek tersalah, padam rekod ini dan masukkan semula di projek yang betul.</p>
+            <p className="text-sm font-black text-emerald-950">Projek expenses boleh dibetulkan</p>
+            <p className="mt-1 text-xs leading-5 text-emerald-800">Jika projek ditukar, semua item, bayaran dan lampiran rekod ini akan dipindahkan bersama.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="md:col-span-2"><span className="field-label">Projek expenses</span><select className="field-control" required value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Pilih projek</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.project_no} · {project.project_name}</option>)}</select></label>
           <label><span className="field-label">Tarikh expenses</span><input type="date" className="field-control" required value={date} onChange={(event) => setDate(event.target.value)} /></label>
           <label><span className="field-label">Kategori</span><select className="field-control" value={category} onChange={(event) => setCategory(event.target.value as ExpenseCategory)}>{expenseCategories.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label><span className="field-label">Pembekal</span><select className="field-control" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Tidak dinyatakan</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
