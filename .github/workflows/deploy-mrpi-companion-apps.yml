@@ -1,0 +1,104 @@
+name: Deploy MRPI companion apps
+
+on:
+  push:
+    branches:
+      - agent/deploy-cloudflare-companion-apps
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build, test and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify deployment authorization
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Resolve shared Supabase public configuration
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+
+          const base = "https://mrpi-contractor-suite-dev.pages.dev";
+          const htmlResponse = await fetch(base);
+          if (!htmlResponse.ok) throw new Error(`Unable to read Contractor Suite: ${htmlResponse.status}`);
+
+          const html = await htmlResponse.text();
+          const scriptPath = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)]
+            .map((match) => match[1])
+            .at(-1);
+          if (!scriptPath) throw new Error("Contractor Suite production bundle was not found");
+
+          const bundleResponse = await fetch(new URL(scriptPath, base));
+          if (!bundleResponse.ok) throw new Error(`Unable to read production bundle: ${bundleResponse.status}`);
+
+          const bundle = await bundleResponse.text();
+          const urls = [...new Set(bundle.match(/https:\/\/[a-z0-9]+\.supabase\.co/g) || [])];
+          const keys = [...new Set(bundle.match(/sb_publishable_[A-Za-z0-9_-]+/g) || [])];
+
+          if (urls.length !== 1 || keys.length !== 1) {
+            throw new Error("Shared Supabase configuration could not be resolved uniquely");
+          }
+          if (new URL(urls[0]).hostname !== "jhfvxsblckejvfnkjsrk.supabase.co") {
+            throw new Error("Unexpected Supabase project");
+          }
+
+          appendFileSync(
+            process.env.GITHUB_ENV,
+            `VITE_SUPABASE_URL=${urls[0]}\nVITE_SUPABASE_PUBLISHABLE_KEY=${keys[0]}\n`,
+          );
+          console.log("Shared Supabase project verified.");
+          NODE
+
+      - name: Validate and build MRPI Project Expenses
+        working-directory: apps/mrpi-project-expenses
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Validate and build MRPI Workforce
+        working-directory: apps/mrpi-workforce
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Ensure Cloudflare Pages projects exist
+        shell: bash
+        run: |
+          projects_json="$(npx --yes wrangler@4.123.0 pages project list --json)"
+
+          for project_name in mrpi-project-expenses mrpi-workforce; do
+            if ! jq -e --arg name "$project_name" 'any(.[]; .name == $name)' <<<"$projects_json" >/dev/null; then
+              npx --yes wrangler@4.123.0 pages project create "$project_name" --production-branch main
+            fi
+          done
+
+      - name: Deploy MRPI Project Expenses
+        run: npx --yes wrangler@4.123.0 pages deploy apps/mrpi-project-expenses/dist --project-name mrpi-project-expenses --branch main
+
+      - name: Deploy MRPI Workforce
+        run: npx --yes wrangler@4.123.0 pages deploy apps/mrpi-workforce/dist --project-name mrpi-workforce --branch main
