@@ -2,6 +2,10 @@
 
 Simple admin-only PWA for worker names, daily attendance, overtime, advances and wage payments.
 
+Daily attendance is grouped by project. The admin can assign or move several workers at once,
+copy the previous day's project allocation, mark an entire project crew present, and keep
+unassigned workers separate from workers who are explicitly absent.
+
 ## Deliberately small scope
 
 - Workers do not have login accounts.
