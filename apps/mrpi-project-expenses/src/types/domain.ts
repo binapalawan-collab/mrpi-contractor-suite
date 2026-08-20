@@ -6,6 +6,8 @@ export type Project = {
 export type ProjectCostOverview = Project & {
   project_id: number; project_status: string; committed_expenses: number; paid_expenses: number
   outstanding_expenses: number; customer_received: number; estimated_gross_profit: number; cash_position: number
+  contract_amount: number; approved_variation_amount: number; pending_variation_amount: number
+  pending_variation_count: number; projected_contract_amount: number; projected_gross_profit: number
 }
 export type Supplier = {
   id: number; company_id: number; owner_user_id: string; name: string; phone: string | null

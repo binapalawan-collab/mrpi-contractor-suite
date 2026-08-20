@@ -25,6 +25,11 @@ export function statusTone(value: ExpenseStatus) {
 export function formatMoney(value: number | string | null | undefined) {
   return `RM ${Number(value ?? 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
+export function formatSignedMoney(value: number | string | null | undefined) {
+  const amount = Number(value ?? 0)
+  if (amount === 0) return formatMoney(0)
+  return `${amount > 0 ? '+' : '-'}${formatMoney(Math.abs(amount))}`
+}
 export function formatDate(value: string) {
   const [year = 1970, month = 1, day = 1] = value.slice(0, 10).split('-').map(Number)
   return new Intl.DateTimeFormat('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, day))
