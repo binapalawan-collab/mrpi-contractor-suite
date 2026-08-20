@@ -40,6 +40,12 @@ export function validateExpense(items: DraftExpenseItem[], description: string, 
   if (initialPayment < 0 || initialPayment > total) return 'Bayaran awal tidak boleh melebihi jumlah expenses.'
   return null
 }
+export function validateExpenseCorrection(items: DraftExpenseItem[], description: string, paidAmount: number) {
+  const baseError = validateExpense(items, description, 0)
+  if (baseError) return baseError
+  if (expenseItemsTotal(items) < paidAmount) return 'Jumlah baharu tidak boleh kurang daripada bayaran yang telah direkod.'
+  return null
+}
 export function safeFileName(value: string) {
   const dot = value.lastIndexOf('.')
   const extension = dot >= 0 ? value.slice(dot).toLowerCase().replace(/[^.a-z0-9]/g, '') : ''
