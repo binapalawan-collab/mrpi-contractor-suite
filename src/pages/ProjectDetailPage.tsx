@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   Banknote,
   BookOpenCheck,
@@ -315,6 +316,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const actionLabel = projectStatusActionLabel(project.status)
   const invoiceTotals = projectInvoiceTotals(invoices)
   const remainingToBill = Math.max(0, Number(project.current_contract_amount) - invoiceTotals.billed)
+  const pendingVariationOrders = variationOrders.filter((variationOrder) => variationOrder.status === 'draft' || variationOrder.status === 'sent')
+  const pendingVariationAmount = pendingVariationOrders.reduce((total, variationOrder) => total + Number(variationOrder.net_amount), 0)
+  const projectedContractAmount = Number(project.current_contract_amount) + pendingVariationAmount
+  const nextPendingVariationOrder = pendingVariationOrders[0]
 
   return (
     <div className="space-y-5 pb-20 lg:pb-4">
@@ -334,6 +339,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
         <ContractSummary label="VO diluluskan" value={formatSignedMoney(Number(project.approved_variation_amount))} tone={Number(project.approved_variation_amount) < 0 ? 'text-red-700' : 'text-emerald-700'} />
         <ContractSummary label="Kontrak semasa" value={formatMoney(Number(project.current_contract_amount))} tone="text-amber-700" />
       </section>
+
+      {nextPendingVariationOrder && <section className="rounded-3xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-2"><div><p className="text-sm font-bold text-amber-700">VO belum diluluskan</p><h2 className="mt-1 text-lg font-black text-amber-950">Kontrak belum berubah secara legal</h2></div><p className={`font-black ${pendingVariationAmount < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{formatSignedMoney(pendingVariationAmount)}</p></div>
+            <p className="mt-2 text-sm leading-6 text-amber-900">Jika {pendingVariationOrders.length} VO ini diluluskan, nilai kontrak akan menjadi <strong>{formatMoney(projectedContractAmount)}</strong>. {nextPendingVariationOrder.status === 'draft' ? 'Simpan & Hantar VO dahulu, kemudian rekod keputusan pelanggan.' : 'VO telah dihantar; rekod keputusan pelanggan untuk mengemas kini kontrak semasa.'}</p>
+            <Link href={`/projek/${project.id}/vo/${nextPendingVariationOrder.id}`} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-400 px-4 text-sm font-black text-slate-950">Buka {variationOrderNumber(nextPendingVariationOrder.vo_no, nextPendingVariationOrder.revision_no)}</Link>
+          </div>
+        </div>
+      </section>}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-6 w-6 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-700">Maklumat operasi</p><h2 className="mt-1 text-xl font-black">Perancangan projek</h2><p className="mt-1 text-sm leading-6 text-slate-500">Nama operasi dan tarikh perancangan boleh dikemas kini. Skop serta nilai kontrak asal kekal dikunci.</p></div></div>
