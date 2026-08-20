@@ -15,6 +15,10 @@ unassigned workers separate from workers who are explicitly absent.
 
 Confirmed wage payments and advances post to MRPI Project Expenses exactly once through database transactions.
 
+Unpaid attendance can be edited or deleted from history. If attendance has already been paid,
+reverse the wage payment first; this removes its generated expense and reopens the attendance
+and applied advances for correction.
+
 ## Local setup and validation
 
 Copy `.env.example` to `.env.local`, use the shared Supabase URL and publishable key, then run:
