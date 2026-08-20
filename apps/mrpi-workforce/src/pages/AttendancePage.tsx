@@ -77,7 +77,7 @@ export function AttendancePage() {
           overtime_rate: attendance?.overtime_rate ?? 0,
           notes: attendance?.notes ?? '',
           existing_id: attendance?.id ?? null,
-          paid: Boolean(attendance?.wage_payment_id),
+          paid: (attendance?.paid_wage_amount ?? 0) > 0,
         },
       }
     }))
@@ -453,7 +453,7 @@ function WorkerAttendanceCard({
       <div className="min-w-0">
         <h3 className="truncate font-black">{worker.name}</h3>
         <p className="mt-1 text-xs text-slate-500">
-          {payTypeLabel(worker.pay_type)}{draft.paid ? ' · Sudah dibayar' : ''}
+          {payTypeLabel(worker.pay_type)}{draft.paid ? ' · Ada bayaran · Dikunci' : ''}
         </p>
       </div>
       <div className="flex shrink-0 items-start gap-2">
