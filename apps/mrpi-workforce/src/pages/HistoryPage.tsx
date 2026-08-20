@@ -138,14 +138,14 @@ export function HistoryPage() {
 
     {tab === 'attendance' && (attendance.length
       ? <div className="card divide-y divide-slate-100 overflow-hidden">{attendance.slice(0, 150).map((record) => {
-        const paid = Boolean(record.wage_payment_id)
+        const paid = record.paid_wage_amount > 0
         return <div key={record.id} className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="font-black">{workerMap.get(record.worker_id)?.name}</h2>
               <p className="mt-1 text-xs text-slate-500">{formatDate(record.attendance_date)} · {record.project_id ? projectMap.get(record.project_id)?.project_no : 'Tiada projek'} · {attendanceLabel(record.status)}</p>
             </div>
-            <div className="text-right"><p className="font-black">{formatMoney(record.wage_amount)}</p>{paid && <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600"><LockKeyhole className="h-3 w-3" />Dikunci</span>}</div>
+            <div className="text-right"><p className="font-black">{formatMoney(record.wage_amount)}</p>{paid && <><p className="mt-1 text-[10px] font-black text-sky-700">Dibayar {formatMoney(record.paid_wage_amount)}</p><span className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600"><LockKeyhole className="h-3 w-3" />Dikunci</span></>}</div>
           </div>
           {paid
             ? <p className="mt-3 text-[11px] font-semibold text-slate-400">Batalkan bayaran upah berkaitan sebelum membetulkan attendance ini.</p>
