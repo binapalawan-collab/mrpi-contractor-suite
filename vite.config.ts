@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['mrpi-mark.svg'],
+      includeAssets: ['mrpi-suite-icon-v2.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'MRPI Contractor Suite',
         short_name: 'MRPI Suite',
@@ -20,12 +20,9 @@ export default defineConfig({
         start_url: '/',
         lang: 'ms',
         icons: [
-          {
-            src: '/mrpi-mark.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
-          },
+          { src: '/mrpi-suite-icon-v2.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
     }),
@@ -36,4 +33,3 @@ export default defineConfig({
     css: true,
   },
 })
-
