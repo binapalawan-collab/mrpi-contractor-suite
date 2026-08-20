@@ -3,7 +3,11 @@ name: Deploy MRPI companion apps
 on:
   push:
     branches:
-      - agent/deploy-cloudflare-companion-apps
+      - main
+    paths:
+      - .github/workflows/deploy-mrpi-companion-apps.yml
+      - apps/mrpi-project-expenses/**
+      - apps/mrpi-workforce/**
   workflow_dispatch:
 
 permissions:
