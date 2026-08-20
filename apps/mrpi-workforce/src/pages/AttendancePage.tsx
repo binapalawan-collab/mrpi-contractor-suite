@@ -34,13 +34,18 @@ import {
 } from '../lib/workforce'
 import type { AttendanceDraft, AttendanceStatus, Company, Project, Worker } from '../types/domain'
 
+function initialAttendanceDate() {
+  const value = new URLSearchParams(window.location.search).get('date')
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : localDateISO()
+}
+
 export function AttendancePage() {
   const { user } = useAuth()
   const [company, setCompany] = useState<Company | null>(null)
   const [workers, setWorkers] = useState<Worker[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [rows, setRows] = useState<AttendanceRow[]>([])
-  const [date, setDate] = useState(localDateISO())
+  const [date, setDate] = useState(initialAttendanceDate)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [copying, setCopying] = useState(false)
