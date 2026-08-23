@@ -8,6 +8,13 @@ import { errorMessage } from '../lib/errors'
 import { loadExpenseFeed, loadProjects } from '../lib/queries'
 import type { ExpenseFeedItem, ExpenseStatus, Project } from '../types/domain'
 
+function projectShort(project?: Project) {
+  return project?.project_alias?.trim() || project?.project_no || ''
+}
+function projectOption(project: Project) {
+  return project.project_alias?.trim() || `${project.project_no} · ${project.project_name}`
+}
+
 export function ExpenseListPage() {
   const [expenses, setExpenses] = useState<ExpenseFeedItem[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -38,7 +45,7 @@ export function ExpenseListPage() {
   const shown = useMemo(() => expenses.filter((expense) => (
     (!projectId || expense.project_id === Number(projectId))
     && (!status || expense.status === status)
-    && (!search.trim() || `${expense.description} ${expense.notes} ${projectMap.get(expense.project_id)?.project_name ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+    && (!search.trim() || `${expense.description} ${expense.notes} ${projectMap.get(expense.project_id)?.project_alias ?? ''} ${projectMap.get(expense.project_id)?.project_name ?? ''}`.toLowerCase().includes(search.toLowerCase()))
   )), [expenses, projectId, status, search, projectMap])
 
   const totals = useMemo(() => shown.reduce((total, expense) => ({
@@ -64,17 +71,17 @@ export function ExpenseListPage() {
 
   return <>
     <PageHeader
-      eyebrow={compactProjectView ? selectedProject?.project_no ?? 'Rekod projek' : 'Rekod projek'}
+      eyebrow={compactProjectView ? projectShort(selectedProject) || 'Rekod projek' : 'Rekod projek'}
       title={compactProjectView ? 'Expenses projek' : 'Semua expenses'}
       description={compactProjectView && selectedProject
-        ? `${selectedProject.project_name} · ${selectedProject.client_name}`
+        ? selectedProject.project_alias?.trim() ? selectedProject.client_name : `${selectedProject.project_name} · ${selectedProject.client_name}`
         : 'Semua kos projek termasuk baki pembekal dan hutang upah yang terakru daripada Workforce.'}
       action={<Link href="/expenses/baru" className="btn-primary"><Plus className="h-4 w-4" />Tambah</Link>}
     />
 
     <div className={`card mb-5 grid gap-3 p-4 ${compactProjectView ? 'md:grid-cols-[1fr_190px]' : 'md:grid-cols-[1fr_220px_190px]'}`}>
       <label className="relative"><Search className="field-icon" /><input className="field-control pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari expenses..." /></label>
-      {!compactProjectView && <label className="relative"><Filter className="field-icon" /><select className="field-control pl-11" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Semua projek</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.project_no} · {project.project_name}</option>)}</select></label>}
+      {!compactProjectView && <label className="relative"><Filter className="field-icon" /><select className="field-control pl-11" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Semua projek</option>{projects.map((project) => <option key={project.id} value={project.id}>{projectOption(project)}</option>)}</select></label>}
       <select className="field-control" value={status} onChange={(event) => setStatus(event.target.value as '' | ExpenseStatus)}><option value="">Semua status</option><option value="unpaid">Belum bayar</option><option value="partially_paid">Bayar sebahagian</option><option value="paid">Selesai</option></select>
     </div>
 
@@ -107,15 +114,16 @@ export function ExpenseListPage() {
       </section>)}
     </div> : <div className="space-y-3">{shown.map((expense) => {
       const project = projectMap.get(expense.project_id)
+      const alias = project?.project_alias?.trim()
       const content = <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-black text-emerald-700">{project?.project_no}</span>
+            <span className="text-xs font-black text-emerald-700">{projectShort(project)}</span>
             <span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusTone(expense.status)}`}>{statusLabel(expense.status)}</span>
             {expense.record_type === 'worker_wage_debt' && <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-700">Upah Workforce</span>}
           </div>
           <h2 className="mt-2 truncate font-black">{expense.description}</h2>
-          <p className="mt-1 text-xs text-slate-500">{project?.project_name} · {categoryLabel(expense.category)} · {formatDate(expense.expense_date)}</p>
+          <p className="mt-1 text-xs text-slate-500">{alias ? '' : `${project?.project_name} · `}{categoryLabel(expense.category)} · {formatDate(expense.expense_date)}</p>
           {expense.record_type === 'worker_wage_debt' && <p className="mt-2 text-xs font-semibold leading-5 text-rose-700">{expense.notes}</p>}
           {expense.record_type === 'worker_wage_debt' && expense.advance_offset > 0 && <p className="mt-1 text-xs font-bold text-amber-700">Advance telah ditolak: {formatMoney(expense.advance_offset)}</p>}
         </div>
