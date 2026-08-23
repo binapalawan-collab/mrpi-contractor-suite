@@ -1,4 +1,4 @@
-import { CalendarCheck, History, House, LogOut, Plus, UsersRound, WalletCards } from 'lucide-react'
+import { BriefcaseBusiness, CalendarCheck, History, House, LogOut, Plus, UsersRound, WalletCards } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
@@ -7,6 +7,7 @@ import { Brand } from './Brand'
 const nav = [
   { to: '/', label: 'Ringkasan', icon: House, exact: true },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck },
+  { to: '/projects', label: 'Projek', icon: BriefcaseBusiness },
   { to: '/workers', label: 'Pekerja', icon: UsersRound },
   { to: '/wages', label: 'Upah', icon: WalletCards },
   { to: '/history', label: 'Sejarah', icon: History },
@@ -16,6 +17,7 @@ const mobile = [
   { to: '/', label: 'Utama', icon: House, exact: true },
   { to: '/workers', label: 'Pekerja', icon: UsersRound },
   { to: '/attendance', label: 'Check-in', icon: Plus, primary: true },
+  { to: '/projects', label: 'Projek', icon: BriefcaseBusiness },
   { to: '/wages', label: 'Upah', icon: WalletCards },
   { to: '/history', label: 'Sejarah', icon: History },
 ]
@@ -54,7 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       <main className="workforce-shell-main mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-10">{children}</main>
     </div>
-    <nav className="workforce-shell-mobile-nav safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pt-2 shadow-[0_-8px_30px_rgb(15_23_42/0.08)] backdrop-blur lg:hidden">
+    <nav className="workforce-shell-mobile-nav safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200 bg-white/95 px-2 pt-2 shadow-[0_-8px_30px_rgb(15_23_42/0.08)] backdrop-blur lg:hidden">
       {mobile.map(({ to, label, icon: Icon, primary, exact }) => <Link key={to} href={to} className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-bold ${primary ? '-mt-5 bg-sky-600 text-white shadow-lg shadow-sky-200' : active(path, to, exact) ? 'text-sky-700' : 'text-slate-500'}`}><Icon className={primary ? 'h-6 w-6' : 'h-5 w-5'} />{label}</Link>)}
     </nav>
   </div>
