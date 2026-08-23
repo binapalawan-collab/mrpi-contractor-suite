@@ -1,0 +1,97 @@
+name: Deploy MRPI Contractor Suite
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-mrpi-contractor-suite.yml
+      - src/**
+      - public/**
+      - index.html
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+      - tsconfig.json
+      - tsconfig.app.json
+      - tsconfig.node.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build, test and deploy Contractor Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify deployment authorization
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Resolve existing public Supabase configuration
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+
+          const base = "https://mrpi-contractor-suite-dev.pages.dev";
+          const htmlResponse = await fetch(base);
+          if (!htmlResponse.ok) throw new Error(`Unable to read current Contractor Suite: ${htmlResponse.status}`);
+
+          const html = await htmlResponse.text();
+          const scriptPath = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)]
+            .map((match) => match[1])
+            .at(-1);
+          if (!scriptPath) throw new Error("Contractor Suite bundle was not found");
+
+          const bundleResponse = await fetch(new URL(scriptPath, base));
+          if (!bundleResponse.ok) throw new Error(`Unable to read current bundle: ${bundleResponse.status}`);
+
+          const bundle = await bundleResponse.text();
+          const urls = [...new Set(bundle.match(/https:\/\/[a-z0-9]+\.supabase\.co/g) || [])];
+          const keys = [...new Set(bundle.match(/sb_publishable_[A-Za-z0-9_-]+/g) || [])];
+
+          if (urls.length !== 1 || keys.length !== 1) {
+            throw new Error("Supabase public configuration could not be resolved uniquely");
+          }
+          if (new URL(urls[0]).hostname !== "jhfvxsblckejvfnkjsrk.supabase.co") {
+            throw new Error("Unexpected Supabase project");
+          }
+
+          console.log(`::add-mask::${keys[0]}`);
+          appendFileSync(
+            process.env.GITHUB_ENV,
+            `VITE_SUPABASE_URL=${urls[0]}\nVITE_SUPABASE_PUBLISHABLE_KEY=${keys[0]}\n`,
+          );
+          NODE
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy Contractor Suite dev
+        run: npx --yes wrangler@4.123.0 pages deploy dist --project-name mrpi-contractor-suite-dev --branch main
