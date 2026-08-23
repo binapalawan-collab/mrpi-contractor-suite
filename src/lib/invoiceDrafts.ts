@@ -31,6 +31,12 @@ export function readInvoiceDraft(userId: string, invoiceId: number) {
       || !Array.isArray(parsed.items)
       || typeof parsed.saved_at !== 'string'
     ) return null
+
+    // An empty local checkpoint must never erase a populated server draft.
+    // Empty invoices are safe to reconstruct from the database, while invoice
+    // lines are the financially meaningful part that must remain authoritative.
+    if (parsed.items.length === 0) return null
+
     return parsed as InvoiceDraft
   } catch {
     return null
