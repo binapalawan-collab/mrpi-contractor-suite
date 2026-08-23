@@ -29,6 +29,7 @@ export function HistoryPage() {
   const [advances, setAdvances] = useState<WorkerAdvance[]>([])
   const [payments, setPayments] = useState<WagePayment[]>([])
   const [attendanceToDelete, setAttendanceToDelete] = useState<Attendance | null>(null)
+  const [advanceToDelete, setAdvanceToDelete] = useState<WorkerAdvance | null>(null)
   const [wageToReverse, setWageToReverse] = useState<WagePayment | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -73,6 +74,29 @@ export function HistoryPage() {
     }
   }
 
+  async function deleteAdvance() {
+    if (!supabase || !advanceToDelete) return
+    setBusy(true)
+    setError('')
+    try {
+      const { data, error: deleteError } = await supabase.rpc('delete_unapplied_worker_advance', {
+        p_advance_id: advanceToDelete.id,
+      })
+      if (deleteError) throw deleteError
+      const storagePaths = Array.isArray(data)
+        ? data.filter((path): path is string => typeof path === 'string' && path.length > 0)
+        : []
+      if (storagePaths.length) await supabase.storage.from('expense-receipts').remove(storagePaths)
+      setAdvanceToDelete(null)
+      refresh()
+    } catch (reason) {
+      setError(errorMessage(reason))
+      setAdvanceToDelete(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function reverseWagePayment() {
     if (!supabase || !wageToReverse) return
     setBusy(true)
@@ -102,13 +126,13 @@ export function HistoryPage() {
     <PageHeader
       eyebrow="Semak & betulkan"
       title="Sejarah workforce"
-      description="Edit atau padam attendance yang tersalah. Rekod berbayar perlu dibatalkan dahulu."
+      description="Attendance dan pinjaman yang tersalah boleh dibetulkan. Rekod yang sudah masuk bayaran perlu dibatalkan dahulu."
     />
     {error && <div className="mb-5"><ErrorBlock message={error} retry={refresh} /></div>}
 
     <div className="mb-5 grid grid-cols-3 rounded-2xl bg-slate-200/70 p-1">
       <TabButton active={tab === 'payments'} onClick={() => setTab('payments')} icon={WalletCards} label="Upah" />
-      <TabButton active={tab === 'advances'} onClick={() => setTab('advances')} icon={HandCoins} label="Advance" />
+      <TabButton active={tab === 'advances'} onClick={() => setTab('advances')} icon={HandCoins} label="Pinjaman" />
       <TabButton active={tab === 'attendance'} onClick={() => setTab('attendance')} icon={CalendarCheck} label="Attendance" />
     </div>
 
@@ -121,7 +145,7 @@ export function HistoryPage() {
             <p className="mt-1 text-sm text-slate-500">{formatDate(payment.period_start)}–{formatDate(payment.period_end)} · Dibayar {formatDate(payment.payment_date)}</p>
             <p className="mt-1 text-xs text-slate-400">{paymentMethods.find((method) => method.value === payment.payment_method)?.label}</p>
           </div>
-          <div className="text-right"><p className="font-black text-sky-700">{formatMoney(payment.net_amount)}</p><p className="mt-1 text-xs text-slate-500">Kasar {formatMoney(payment.gross_amount)}</p>{payment.advance_deduction > 0 && <p className="mt-1 text-xs font-bold text-amber-700">Tolak {formatMoney(payment.advance_deduction)}</p>}</div>
+          <div className="text-right"><p className="font-black text-sky-700">{formatMoney(payment.net_amount)}</p><p className="mt-1 text-xs text-slate-500">Kasar {formatMoney(payment.gross_amount)}</p>{payment.advance_deduction > 0 && <p className="mt-1 text-xs font-bold text-amber-700">Tolak pinjaman {formatMoney(payment.advance_deduction)}</p>}</div>
         </div>
         <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
           <button type="button" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-black text-rose-700 hover:bg-rose-50" onClick={() => setWageToReverse(payment)}><Undo2 className="h-4 w-4" />Batalkan bayaran</button>
@@ -130,11 +154,26 @@ export function HistoryPage() {
       : <EmptyBlock title="Belum ada bayaran upah" description="Bayaran yang disahkan akan muncul di sini." />)}
 
     {tab === 'advances' && (advances.length
-      ? <div className="space-y-3">{advances.map((advance) => <article key={advance.id} className="card flex items-start justify-between gap-4 p-5">
-        <div><p className="text-xs font-black text-sky-700">{projectMap.get(advance.project_id)?.project_no}</p><h2 className="mt-1 font-black">{workerMap.get(advance.worker_id)?.name}</h2><p className="mt-1 text-sm text-slate-500">{formatDate(advance.advance_date)} · {advance.applied_wage_payment_id ? 'Sudah ditolak' : 'Belum ditolak'}</p></div>
-        <p className="font-black text-amber-700">{formatMoney(advance.amount)}</p>
-      </article>)}</div>
-      : <EmptyBlock title="Belum ada pendahuluan" description="Pendahuluan pekerja akan muncul di sini." />)}
+      ? <div className="space-y-3">{advances.map((advance) => {
+        const applied = Boolean(advance.applied_wage_payment_id)
+        return <article key={advance.id} className="card p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black text-sky-700">{projectMap.get(advance.project_id)?.project_no}</p>
+              <h2 className="mt-1 font-black">{workerMap.get(advance.worker_id)?.name}</h2>
+              <p className="mt-1 text-sm text-slate-500">{formatDate(advance.advance_date)} · {applied ? 'Sudah ditolak' : 'Belum ditolak'}</p>
+              {advance.notes && <p className="mt-1 text-xs text-slate-400">{advance.notes}</p>}
+            </div>
+            <p className="font-black text-amber-700">{formatMoney(advance.amount)}</p>
+          </div>
+          <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
+            {applied
+              ? <span className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-black text-slate-400"><LockKeyhole className="h-3.5 w-3.5" />Sudah digunakan</span>
+              : <button type="button" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-black text-rose-700 hover:bg-rose-50" onClick={() => setAdvanceToDelete(advance)}><Trash2 className="h-3.5 w-3.5" />Padam pinjaman</button>}
+          </div>
+        </article>
+      })}</div>
+      : <EmptyBlock title="Belum ada pinjaman" description="Pinjaman pekerja akan muncul di sini." />)}
 
     {tab === 'attendance' && (attendance.length
       ? <div className="card divide-y divide-slate-100 overflow-hidden">{attendance.slice(0, 150).map((record) => {
@@ -165,9 +204,17 @@ export function HistoryPage() {
       onCancel={() => setAttendanceToDelete(null)}
       onConfirm={() => void deleteAttendance()}
     />}
+    {advanceToDelete && <ConfirmDialog
+      title="Padam rekod pinjaman?"
+      description={`Pinjaman ${formatMoney(advanceToDelete.amount)} untuk ${workerMap.get(advanceToDelete.worker_id)?.name ?? 'pekerja'} akan dipadam sekali daripada Project Expenses. Tindakan ini tidak boleh dibuat jika pinjaman sudah digunakan dalam bayaran upah.`}
+      confirmLabel="Padam pinjaman"
+      busy={busy}
+      onCancel={() => setAdvanceToDelete(null)}
+      onConfirm={() => void deleteAdvance()}
+    />}
     {wageToReverse && <ConfirmDialog
       title="Batalkan bayaran upah?"
-      description="Rekod expenses upah akan dibuang, attendance dalam tempoh ini dibuka semula untuk pembetulan, dan pendahuluan berkaitan akan dikembalikan kepada belum ditolak. Selepas membetulkan attendance, rekodkan bayaran upah semula."
+      description="Rekod expenses upah akan dibuang, attendance dalam tempoh ini dibuka semula untuk pembetulan, dan pinjaman berkaitan akan dikembalikan kepada belum ditolak. Selepas membetulkan attendance, rekodkan bayaran upah semula."
       confirmLabel="Batalkan bayaran"
       busy={busy}
       onCancel={() => setWageToReverse(null)}
