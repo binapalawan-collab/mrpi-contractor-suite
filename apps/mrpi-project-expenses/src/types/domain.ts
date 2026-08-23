@@ -20,6 +20,26 @@ export type Expense = {
   source_worker_wage_payment_id: number | null; source_worker_advance_id: number | null
   notes: string; created_at: string; updated_at: string
 }
+export type ExpenseFeedItem = {
+  record_key: string
+  record_type: 'expense' | 'worker_wage_debt'
+  expense_id: number | null
+  worker_id: number | null
+  project_id: number
+  company_id: number
+  owner_user_id: string
+  supplier_id: number | null
+  expense_date: string
+  category: ExpenseCategory
+  description: string
+  total_amount: number
+  paid_amount: number
+  balance_amount: number
+  status: ExpenseStatus
+  source_type: 'manual' | 'worker_wage' | 'worker_advance' | 'worker_wage_debt'
+  advance_offset: number
+  notes: string
+}
 export type ExpenseItem = {
   id: number; expense_id: number; description: string; quantity: number; unit: string
   unit_price: number; amount: number; sort_order: number
