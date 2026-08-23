@@ -59,7 +59,7 @@ export function ExpenseDetailPage({ expenseId }: { expenseId: string }) {
       setExpense(row)
 
       const [projectResult, itemResult, paymentResult, attachmentResult, supplierResult] = await Promise.all([
-        client.from('projects').select('id,company_id,owner_user_id,project_no,project_name,client_name,status,current_contract_amount').eq('id', row.project_id).single(),
+        client.from('projects').select('id,company_id,owner_user_id,project_no,project_alias,project_name,client_name,status,current_contract_amount').eq('id', row.project_id).single(),
         client.from('project_expense_items').select('*').eq('expense_id', id).order('sort_order'),
         client.from('project_expense_payments').select('*').eq('expense_id', id).order('payment_date', { ascending: false }).order('id', { ascending: false }),
         client.from('project_expense_attachments').select('*').eq('expense_id', id).order('id'),
@@ -75,6 +75,7 @@ export function ExpenseDetailPage({ expenseId }: { expenseId: string }) {
 
       setProject({
         ...projectResult.data,
+        project_alias: typeof projectResult.data.project_alias === 'string' && projectResult.data.project_alias.trim() ? projectResult.data.project_alias.trim() : null,
         current_contract_amount: Number(projectResult.data.current_contract_amount),
       } as Project)
       setItems((itemResult.data ?? []).map((item) => ({
@@ -201,12 +202,13 @@ export function ExpenseDetailPage({ expenseId }: { expenseId: string }) {
   if (!expense) return null
 
   const manual = expense.source_type === 'manual'
+  const projectAlias = project?.project_alias?.trim()
 
   return <>
     <PageHeader
-      eyebrow={project?.project_no}
+      eyebrow={projectAlias || project?.project_no}
       title={expense.description}
-      description={`${project?.project_name ?? ''} · ${formatDate(expense.expense_date)}`}
+      description={projectAlias ? formatDate(expense.expense_date) : `${project?.project_name ?? ''} · ${formatDate(expense.expense_date)}`}
       action={<div className="flex flex-wrap gap-2">
         {manual && <Link href={`/expenses/${expense.id}/edit`} className="btn-secondary"><Pencil className="h-4 w-4" />Edit</Link>}
         {manual && <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700" onClick={() => setDeleteExpenseOpen(true)}><Trash2 className="h-4 w-4" />Padam</button>}
@@ -296,45 +298,13 @@ export function ExpenseDetailPage({ expenseId }: { expenseId: string }) {
       </div>
     </div>
 
-    {editingPayment && <PaymentEditSheet
-      payment={editingPayment}
-      maxAmount={expense.balance_amount + editingPayment.amount}
-      saving={saving}
-      onClose={() => setEditingPayment(null)}
-      onSubmit={correctPayment}
-    />}
-    {paymentToDelete && <ConfirmDialog
-      title="Padam bayaran ini?"
-      description={`${formatMoney(paymentToDelete.amount)} akan dikeluarkan dan baki expenses dikira semula.`}
-      confirmLabel="Padam bayaran"
-      busy={saving}
-      onCancel={() => setPaymentToDelete(null)}
-      onConfirm={() => void deletePayment()}
-    />}
-    {deleteExpenseOpen && <ConfirmDialog
-      title="Padam seluruh rekod expenses?"
-      description="Semua item, bayaran dan lampiran dalam rekod ini akan dipadam. Tindakan ini tidak boleh dibatalkan."
-      confirmLabel="Padam expenses"
-      busy={saving}
-      onCancel={() => setDeleteExpenseOpen(false)}
-      onConfirm={() => void deleteExpense()}
-    />}
+    {editingPayment && <PaymentEditSheet payment={editingPayment} maxAmount={expense.balance_amount + editingPayment.amount} saving={saving} onClose={() => setEditingPayment(null)} onSubmit={correctPayment} />}
+    {paymentToDelete && <ConfirmDialog title="Padam bayaran ini?" description={`${formatMoney(paymentToDelete.amount)} akan dikeluarkan dan baki expenses dikira semula.`} confirmLabel="Padam bayaran" busy={saving} onCancel={() => setPaymentToDelete(null)} onConfirm={() => void deletePayment()} />}
+    {deleteExpenseOpen && <ConfirmDialog title="Padam seluruh rekod expenses?" description="Semua item, bayaran dan lampiran dalam rekod ini akan dipadam. Tindakan ini tidak boleh dibatalkan." confirmLabel="Padam expenses" busy={saving} onCancel={() => setDeleteExpenseOpen(false)} onConfirm={() => void deleteExpense()} />}
   </>
 }
 
-function PaymentEditSheet({
-  payment,
-  maxAmount,
-  saving,
-  onClose,
-  onSubmit,
-}: {
-  payment: ExpensePayment
-  maxAmount: number
-  saving: boolean
-  onClose: () => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
-}) {
+function PaymentEditSheet({ payment, maxAmount, saving, onClose, onSubmit }: { payment: ExpensePayment; maxAmount: number; saving: boolean; onClose: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
   return <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/55 backdrop-blur-sm sm:place-items-center sm:p-6" role="presentation" onMouseDown={() => !saving && onClose()}>
     <section className="max-h-[92vh] w-full overflow-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-3xl" role="dialog" aria-modal="true" aria-labelledby="payment-edit-title" onMouseDown={(event) => event.stopPropagation()}>
       <div className="mb-5 flex items-center justify-between"><h2 id="payment-edit-title" className="text-xl font-black">Edit bayaran</h2><button type="button" className="h-10 rounded-xl px-3 text-sm font-black text-slate-500 hover:bg-slate-100" disabled={saving} onClick={onClose}>Tutup</button></div>
