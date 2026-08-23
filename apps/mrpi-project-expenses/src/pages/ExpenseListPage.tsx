@@ -1,5 +1,5 @@
 import { Banknote, Filter, Plus, Search } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'wouter'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '../components/State'
@@ -99,5 +99,3 @@ function DebtSummary({ label, value, strong = false }: { label: string; value: n
     <p className={`mt-2 text-lg font-black ${strong ? 'text-rose-700' : 'text-slate-900'}`}>{formatMoney(value)}</p>
   </article>
 }
-
-function _KeepReactNodeType(_: ReactNode) { return null }
