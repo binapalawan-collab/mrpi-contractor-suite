@@ -8,6 +8,8 @@ import { errorMessage } from '../lib/errors'
 import { loadExpenses, loadProjectOverview } from '../lib/queries'
 import type { Expense, ProjectCostOverview } from '../types/domain'
 
+const projectLabel=(project:ProjectCostOverview)=>project.project_alias?.trim()||project.project_no
+
 export function DashboardPage() {
   const [projects, setProjects] = useState<ProjectCostOverview[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -79,8 +81,9 @@ export function DashboardPage() {
           const committedPct = project.current_contract_amount ? project.committed_expenses / project.current_contract_amount * 100 : 0
           const projectedPct = project.projected_contract_amount ? project.committed_expenses / project.projected_contract_amount * 100 : 0
           const hasPendingVariation = project.pending_variation_count > 0
+          const alias = project.project_alias?.trim()
           return <article key={project.project_id} className="card p-5">
-            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black text-emerald-700">{project.project_no}</p><h3 className="mt-1 font-black">{project.project_name}</h3><p className="mt-1 text-xs text-slate-500">{project.client_name}</p></div><p className="text-right text-sm font-black text-emerald-700">{formatMoney(project.estimated_gross_profit)}<span className="block text-[11px] font-semibold text-slate-400">untung diluluskan</span></p></div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black text-emerald-700">{projectLabel(project)}</p>{!alias&&<h3 className="mt-1 font-black">{project.project_name}</h3>}<p className="mt-1 text-xs text-slate-500">{project.client_name}</p></div><p className="text-right text-sm font-black text-emerald-700">{formatMoney(project.estimated_gross_profit)}<span className="block text-[11px] font-semibold text-slate-400">untung diluluskan</span></p></div>
             {hasPendingVariation && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
               <div className="flex items-center justify-between gap-3 text-xs font-black text-amber-900"><span>{project.pending_variation_count} VO belum diluluskan</span><span>{formatSignedMoney(project.pending_variation_amount)}</span></div>
               <p className="mt-1 text-xs leading-5 text-amber-800">Jika diluluskan: kontrak <strong>{formatMoney(project.projected_contract_amount)}</strong> · untung <strong>{formatMoney(project.projected_gross_profit)}</strong> · kos <strong>{projectedPct.toFixed(1)}%</strong>.</p>
