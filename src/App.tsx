@@ -17,6 +17,7 @@ import { InvoicePrintPage } from './pages/InvoicePrintPage'
 import { MoreMenuPage } from './pages/MoreMenuPage'
 import { PaymentSchedulePage } from './pages/PaymentSchedulePage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ProjectAliasPage } from './pages/ProjectAliasPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectListPage } from './pages/ProjectListPage'
 import { ProjectStatementPage } from './pages/ProjectStatementPage'
@@ -61,6 +62,7 @@ function ProtectedRoutes() {
       <Route path="/sebutharga/:id/cetak">{({ id }) => <QuotationPrintPage quotationId={id} />}</Route>
       <Route path="/sebutharga/:id">{({ id }) => <QuotationEditorPage quotationId={id} />}</Route>
       <Route path="/sebutharga"><QuotationListPage /></Route>
+      <Route path="/projek-alias"><ProjectAliasPage /></Route>
       <Route path="/projek/:projectId/vo/:voId/cetak">{({ projectId, voId }) => <VariationOrderPrintPage projectId={projectId} variationOrderId={voId} />}</Route>
       <Route path="/projek/:projectId/vo/:voId">{({ projectId, voId }) => <VariationOrderEditorPage projectId={projectId} variationOrderId={voId} />}</Route>
       <Route path="/projek/:projectId/perjanjian/cetak">{({ projectId }) => <AgreementPrintPage projectId={projectId} />}</Route>
