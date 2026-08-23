@@ -31,6 +31,7 @@ export function DashboardPage() {
     contract: total.contract + project.current_contract_amount,
     committed: total.committed + project.committed_expenses,
     paid: total.paid + project.paid_expenses,
+    debt: total.debt + project.outstanding_expenses,
     profit: total.profit + project.estimated_gross_profit,
     pendingVariation: total.pendingVariation + project.pending_variation_amount,
     pendingCount: total.pendingCount + project.pending_variation_count,
@@ -40,6 +41,7 @@ export function DashboardPage() {
     contract: 0,
     committed: 0,
     paid: 0,
+    debt: 0,
     profit: 0,
     pendingVariation: 0,
     pendingCount: 0,
@@ -51,10 +53,10 @@ export function DashboardPage() {
   if (error) return <ErrorBlock message={error} retry={refresh} />
 
   return <>
-    <PageHeader eyebrow="Dashboard expenses" title="Kos sebenar projek" description="Kontrak semasa hanya termasuk VO diluluskan. VO draf atau dihantar dipaparkan sebagai unjuran." action={<Link href="/expenses/baru" className="btn-primary"><Plus className="h-4 w-4" />Tambah expenses</Link>} />
+    <PageHeader eyebrow="Dashboard expenses" title="Kos sebenar projek" description="Kos komited termasuk expenses, hutang pembekal dan upah Workforce yang telah diperoleh tetapi belum dibayar." action={<Link href="/expenses/baru" className="btn-primary"><Plus className="h-4 w-4" />Tambah expenses</Link>} />
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric icon={CircleDollarSign} label="Kontrak diluluskan" value={formatMoney(totals.contract)} tone="slate" />
-      <Metric icon={WalletCards} label="Jumlah expenses" value={formatMoney(totals.committed)} tone="amber" />
+      <Metric icon={WalletCards} label="Kos komited" value={formatMoney(totals.committed)} tone="amber" />
       <Metric icon={Banknote} label="Tunai dibayar" value={formatMoney(totals.paid)} tone="rose" />
       <Metric icon={TrendingUp} label="Untung kasar diluluskan" value={formatMoney(totals.profit)} tone="emerald" />
     </section>
@@ -72,10 +74,10 @@ export function DashboardPage() {
     </section>}
     <section className="mt-7 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
       <div>
-        <div className="section-title"><div><h2>Prestasi projek</h2><p>Kontrak diluluskan ditolak semua komitmen expenses.</p></div><Link href="/projek">Lihat semua <ArrowRight className="h-4 w-4" /></Link></div>
+        <div className="section-title"><div><h2>Prestasi projek</h2><p>Kuning = sudah dibayar. Merah = hutang/belum dibayar, termasuk upah Workforce.</p></div><Link href="/projek">Lihat semua <ArrowRight className="h-4 w-4" /></Link></div>
         <div className="space-y-3">{projects.slice(0, 5).map((project) => {
-          const approvedPct = project.current_contract_amount ? Math.min(100, project.committed_expenses / project.current_contract_amount * 100) : 0
-          const projectedPct = project.projected_contract_amount ? Math.min(100, project.committed_expenses / project.projected_contract_amount * 100) : 0
+          const committedPct = project.current_contract_amount ? project.committed_expenses / project.current_contract_amount * 100 : 0
+          const projectedPct = project.projected_contract_amount ? project.committed_expenses / project.projected_contract_amount * 100 : 0
           const hasPendingVariation = project.pending_variation_count > 0
           return <article key={project.project_id} className="card p-5">
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black text-emerald-700">{project.project_no}</p><h3 className="mt-1 font-black">{project.project_name}</h3><p className="mt-1 text-xs text-slate-500">{project.client_name}</p></div><p className="text-right text-sm font-black text-emerald-700">{formatMoney(project.estimated_gross_profit)}<span className="block text-[11px] font-semibold text-slate-400">untung diluluskan</span></p></div>
@@ -83,8 +85,13 @@ export function DashboardPage() {
               <div className="flex items-center justify-between gap-3 text-xs font-black text-amber-900"><span>{project.pending_variation_count} VO belum diluluskan</span><span>{formatSignedMoney(project.pending_variation_amount)}</span></div>
               <p className="mt-1 text-xs leading-5 text-amber-800">Jika diluluskan: kontrak <strong>{formatMoney(project.projected_contract_amount)}</strong> · untung <strong>{formatMoney(project.projected_gross_profit)}</strong> · kos <strong>{projectedPct.toFixed(1)}%</strong>.</p>
             </div>}
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-amber-400" style={{ width: `${approvedPct}%` }} /></div>
-            <div className="mt-2 flex justify-between text-xs font-semibold text-slate-500"><span>Kos {formatMoney(project.committed_expenses)}</span><span>{approvedPct.toFixed(1)}% kontrak diluluskan</span></div>
+            <ProjectCostBar project={project} />
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" />Dibayar {formatMoney(project.paid_expenses)}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" />Hutang {formatMoney(project.outstanding_expenses)}</span>
+              <span className="ml-auto">Kos komited {committedPct.toFixed(1)}% kontrak</span>
+            </div>
+            {project.unpaid_wages > 0 && <p className="mt-1.5 text-[11px] font-semibold text-rose-700">Hutang termasuk upah Workforce belum dibayar {formatMoney(project.unpaid_wages)}.</p>}
           </article>
         })}{!projects.length && <p className="card p-6 text-sm text-slate-500">Belum ada projek daripada Contractor Suite.</p>}</div>
       </div>
@@ -94,6 +101,26 @@ export function DashboardPage() {
       </div>
     </section>
   </>
+}
+
+function ProjectCostBar({ project }: { project: ProjectCostOverview }) {
+  const contract = project.current_contract_amount
+  const paidPct = contract > 0 ? Math.min(100, project.paid_expenses / contract * 100) : 0
+  const rawDebtPct = contract > 0 ? Math.max(0, project.outstanding_expenses / contract * 100) : 0
+  const debtPct = Math.min(Math.max(0, 100 - paidPct), rawDebtPct)
+
+  return <div className="mt-4 h-6 overflow-hidden rounded-full bg-slate-100" aria-label={`Dibayar ${formatMoney(project.paid_expenses)}, hutang ${formatMoney(project.outstanding_expenses)}`}>
+    <div className="flex h-full w-full">
+      {paidPct > 0 && <div title={`Dibayar ${formatMoney(project.paid_expenses)}`} className="flex h-full shrink-0 items-center justify-center overflow-hidden bg-amber-400 px-1 text-[10px] font-black text-slate-950" style={{ width: `${paidPct}%` }}>{paidPct >= 12 ? compactMoney(project.paid_expenses) : ''}</div>}
+      {debtPct > 0 && <div title={`Belum dibayar ${formatMoney(project.outstanding_expenses)}`} className="flex h-full shrink-0 items-center justify-center overflow-hidden bg-rose-500 px-1 text-[10px] font-black text-white" style={{ width: `${debtPct}%` }}>{debtPct >= 12 ? compactMoney(project.outstanding_expenses) : ''}</div>}
+    </div>
+  </div>
+}
+
+function compactMoney(value: number) {
+  const absolute = Math.abs(value)
+  if (absolute >= 1000) return `RM ${(value / 1000).toLocaleString('ms-MY', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k`
+  return `RM ${value.toLocaleString('ms-MY', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
 function Metric({ icon: Icon, label, value, tone }: { icon: typeof CircleDollarSign; label: string; value: string; tone: 'slate' | 'amber' | 'rose' | 'emerald' }) {
