@@ -41,6 +41,11 @@ type CalendarPaymentSummary = {
   count: number
 }
 
+type CalendarAdvanceSummary = {
+  amount: number
+  count: number
+}
+
 export function WorkerReportPage({ workerId }: { workerId: string }) {
   const parsedWorkerId = Number(workerId)
   const today = localDateISO()
@@ -114,9 +119,21 @@ export function WorkerReportPage({ workerId }: { workerId: string }) {
     })
     return grouped
   }, [payments])
+  const advanceMap = useMemo(() => {
+    const grouped = new Map<string, CalendarAdvanceSummary>()
+    advances.forEach((advance) => {
+      if (advance.amount <= 0) return
+      const existing = grouped.get(advance.advance_date)
+      grouped.set(advance.advance_date, {
+        amount: (existing?.amount ?? 0) + advance.amount,
+        count: (existing?.count ?? 0) + 1,
+      })
+    })
+    return grouped
+  }, [advances])
   const calendarActivityDates = useMemo(
-    () => [...attendance.map((record) => record.attendance_date), ...paymentMap.keys()],
-    [attendance, paymentMap],
+    () => [...attendance.map((record) => record.attendance_date), ...paymentMap.keys(), ...advanceMap.keys()],
+    [advanceMap, attendance, paymentMap],
   )
   const calendarMonths = useMemo(
     () => buildReportCalendarMonths(fromDate, toDate, calendarActivityDates, today),
@@ -230,13 +247,14 @@ export function WorkerReportPage({ workerId }: { workerId: string }) {
         : <ReportEmpty text="Tiada aktiviti projek dalam tempoh ini." />}
     </ReportSection>
 
-    <ReportSection icon={CalendarDays} title="Kalendar attendance" description="Kehadiran, hari upah yang sudah dilangsaikan, dan tarikh bayaran diterima.">
+    <ReportSection icon={CalendarDays} title="Kalendar attendance" description="Kehadiran, cover upah, tarikh bayaran diterima dan pinjaman pekerja.">
       <AttendanceLegend />
       <div className="mt-3 space-y-4">{calendarMonths.map((month) => <AttendanceCalendar
         key={month.key}
         month={month}
         attendanceMap={attendanceMap}
         paymentMap={paymentMap}
+        advanceMap={advanceMap}
         projectMap={projectMap}
         fromDate={fromDate}
         toDate={toDate}
@@ -356,6 +374,7 @@ function AttendanceLegend() {
     <LegendItem marker="●" label="Upah cover penuh" style="border-violet-300 bg-violet-50 text-violet-800" />
     <LegendItem marker="◐" label="Upah cover separa" style="border-orange-300 bg-orange-50 text-orange-800" />
     <LegendItem marker={<Banknote className="h-4 w-4" />} label="Bayaran diterima" style="border-sky-300 bg-sky-50 text-sky-800" />
+    <LegendItem marker={<HandCoins className="h-4 w-4" />} label="Pinjaman diterima" style="border-amber-300 bg-amber-50 text-amber-800" />
     <LegendItem marker="—" label="Tiada rekod" style="border-slate-200 bg-white text-slate-500" />
   </div>
 }
@@ -368,6 +387,7 @@ function AttendanceCalendar({
   month,
   attendanceMap,
   paymentMap,
+  advanceMap,
   projectMap,
   fromDate,
   toDate,
@@ -376,6 +396,7 @@ function AttendanceCalendar({
   month: ReportCalendarMonth
   attendanceMap: Map<string, Attendance>
   paymentMap: Map<string, CalendarPaymentSummary>
+  advanceMap: Map<string, CalendarAdvanceSummary>
   projectMap: Map<number, Project>
   fromDate: string
   toDate: string
@@ -392,9 +413,10 @@ function AttendanceCalendar({
       if (!date) return <div key={`empty-${index}`} className="min-h-20 bg-slate-50 sm:min-h-28" aria-hidden="true" />
       const record = attendanceMap.get(date)
       const payment = paymentMap.get(date)
+      const advance = advanceMap.get(date)
       const project = record?.project_id ? projectMap.get(record.project_id) : null
       const withinPeriod = (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
-      return <CalendarDay key={date} date={date} record={record} payment={payment} project={project} withinPeriod={withinPeriod} isToday={date === today} />
+      return <CalendarDay key={date} date={date} record={record} payment={payment} advance={advance} project={project} withinPeriod={withinPeriod} isToday={date === today} />
     })}</div>
   </article>
 }
@@ -403,6 +425,7 @@ function CalendarDay({
   date,
   record,
   payment,
+  advance,
   project,
   withinPeriod,
   isToday,
@@ -410,6 +433,7 @@ function CalendarDay({
   date: string
   record?: Attendance
   payment?: CalendarPaymentSummary
+  advance?: CalendarAdvanceSummary
   project?: Project | null
   withinPeriod: boolean
   isToday: boolean
@@ -436,7 +460,8 @@ function CalendarDay({
       ? ` · Upah cover separa ${formatMoney(paidAmount)} / ${formatMoney(wageAmount)}`
       : ''
   const paymentDescription = payment ? ` · Bayaran diterima ${formatMoney(payment.amount)}` : ''
-  const description = `${formatDate(date)}${attendanceDescription}${coverageDescription}${paymentDescription}`
+  const advanceDescription = advance ? ` · Pinjaman diterima ${formatMoney(advance.amount)}` : ''
+  const description = `${formatDate(date)}${attendanceDescription}${coverageDescription}${paymentDescription}${advanceDescription}`
 
   return <div title={description} className={`relative min-h-20 min-w-0 p-1.5 sm:min-h-28 sm:p-2 ${statusStyle} ${withinPeriod ? '' : 'opacity-40'}`}>
     <div className="flex items-start justify-between gap-1">
@@ -456,6 +481,10 @@ function CalendarDay({
     {payment && <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-sky-600 px-1.5 py-1 text-[8px] font-black leading-none text-white shadow-sm sm:text-[10px]" aria-label={`Bayaran diterima ${formatMoney(payment.amount)}`}>
       <Banknote className="h-3 w-3 shrink-0" />
       <span className="truncate">{formatCalendarPayment(payment.amount)}</span>
+    </div>}
+    {advance && <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-amber-500 px-1.5 py-1 text-[8px] font-black leading-none text-white shadow-sm sm:text-[10px]" aria-label={`Pinjaman diterima ${formatMoney(advance.amount)}`}>
+      <HandCoins className="h-3 w-3 shrink-0" />
+      <span className="truncate">{formatCalendarPayment(advance.amount)}</span>
     </div>}
   </div>
 }
