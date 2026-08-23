@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { ProjectAliasPage } from './pages/ProjectAliasPage'
 import { SetupRequiredPage } from './pages/SetupRequiredPage'
+import { SiteCalendarPage } from './pages/SiteCalendarPage'
 import { UpdatePasswordPage } from './pages/UpdatePasswordPage'
 import { WagePage } from './pages/WagePage'
 import { WorkerPage } from './pages/WorkerPage'
@@ -30,6 +31,7 @@ function Protected() {
   return <Switch>
     <Route path="/"><DashboardPage /></Route>
     <Route path="/attendance"><AttendancePage /></Route>
+    <Route path="/projects/:projectId/calendar">{({ projectId }) => <SiteCalendarPage projectId={projectId} />}</Route>
     <Route path="/projects"><ProjectAliasPage /></Route>
     <Route path="/workers/:workerId/report">{({ workerId }) => <WorkerReportPage workerId={workerId} />}</Route>
     <Route path="/workers"><WorkerPage /></Route>
