@@ -52,6 +52,10 @@ function formatDays(value: number) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)} hari`
 }
 
+function projectOptionLabel(project: Project) {
+  return project.workforce_name ? project.project_no : `${project.project_no} · ${project.project_name}`
+}
+
 export function WagePage() {
   const today = localDateISO()
   const [workers, setWorkers] = useState<Worker[]>([])
@@ -346,7 +350,7 @@ export function WagePage() {
         <label>
           <span className="field-label">Projek</span>
           <select className="field-control" value={projectId} onChange={(event) => selectProject(event.target.value)}>
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.project_no} · {project.project_name}</option>)}
+            {projects.map((project) => <option key={project.id} value={project.id}>{projectOptionLabel(project)}</option>)}
           </select>
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -454,7 +458,7 @@ function Modal({ title, close, children }: { title: string; close: () => void; c
 function WorkerProjectFields({ workers, projects }: { workers: Worker[]; projects: Project[] }) {
   return <>
     <label><span className="field-label">Pekerja</span><select name="worker_id" className="field-control" required>{workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name}</option>)}</select></label>
-    <label><span className="field-label">Projek</span><select name="project_id" className="field-control" required>{projects.map((project) => <option key={project.id} value={project.id}>{project.project_no} · {project.project_name}</option>)}</select></label>
+    <label><span className="field-label">Projek</span><select name="project_id" className="field-control" required>{projects.map((project) => <option key={project.id} value={project.id}>{projectOptionLabel(project)}</option>)}</select></label>
   </>
 }
 
