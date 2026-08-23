@@ -1,10 +1,7 @@
 import {
   ArrowRightLeft,
   Check,
-  ChevronDown,
-  ChevronUp,
   Copy,
-  Folder,
   Save,
   UsersRound,
 } from 'lucide-react'
@@ -15,7 +12,6 @@ import { EmptyBlock, ErrorBlock, LoadingBlock } from '../components/State'
 import {
   assignWorkersToProject,
   attendanceCounts,
-  estimatedDailyLabour,
   groupAttendanceRows,
   setProjectAttendanceStatus,
   type AttendanceGroup,
@@ -26,10 +22,7 @@ import { loadAttendance, loadCompany, loadProjects, loadWorkers } from '../lib/q
 import { supabase } from '../lib/supabase'
 import {
   attendanceOptions,
-  calculateDailyWage,
-  formatMoney,
   localDateISO,
-  payTypeLabel,
   previousDateISO,
 } from '../lib/workforce'
 import type { AttendanceDraft, AttendanceStatus, Company, Project, Worker } from '../types/domain'
@@ -37,6 +30,17 @@ import type { AttendanceDraft, AttendanceStatus, Company, Project, Worker } from
 function initialAttendanceDate() {
   const value = new URLSearchParams(window.location.search).get('date')
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : localDateISO()
+}
+
+function projectAlias(project: Project | null | undefined) {
+  return project?.workforce_name?.trim() || 'Alias belum ditetapkan'
+}
+
+function statusText(status: AttendanceStatus | null) {
+  if (status === 'present') return 'Hadir'
+  if (status === 'half_day') return '½ Hari'
+  if (status === 'absent') return 'Tidak Hadir'
+  return 'Belum ditanda'
 }
 
 export function AttendancePage() {
@@ -52,7 +56,6 @@ export function AttendancePage() {
   const [saved, setSaved] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const [expandedWorkerIds, setExpandedWorkerIds] = useState<number[]>([])
 
   const [assignmentOpen, setAssignmentOpen] = useState(false)
   const [assignmentWorkerIds, setAssignmentWorkerIds] = useState<number[]>([])
@@ -98,7 +101,6 @@ export function AttendancePage() {
 
   const groups = useMemo(() => groupAttendanceRows(rows, projects), [projects, rows])
   const counts = useMemo(() => attendanceCounts(rows), [rows])
-  const totalEstimate = useMemo(() => estimatedDailyLabour(rows), [rows])
 
   function changeDate(value: string) {
     setDate(value)
@@ -120,7 +122,7 @@ export function AttendancePage() {
     status: AttendanceStatus | null = null,
   ) {
     if (!projects.length) {
-      setError('Belum ada projek yang boleh dipilih dalam Contractor Suite.')
+      setError('Belum ada projek yang boleh dipilih.')
       return
     }
     setAssignmentWorkerIds(workerIds)
@@ -150,15 +152,15 @@ export function AttendancePage() {
     ))
     const project = projects.find((item) => item.id === projectId)
     setNotice(project
-      ? `${assignmentWorkerIds.length} pekerja diagihkan ke ${project.project_no}.`
+      ? `${assignmentWorkerIds.length} pekerja dipindahkan ke ${projectAlias(project)}.`
       : `${assignmentWorkerIds.length} pekerja dipindahkan ke Belum diagih.`)
     setSaved(false)
     setAssignmentOpen(false)
   }
 
-  function chooseStatus(row: AttendanceRow, status: AttendanceStatus | null) {
+  function chooseStatus(row: AttendanceRow, status: AttendanceStatus) {
     if (row.draft.paid) return
-    if (status && status !== 'absent' && !row.draft.project_id) {
+    if (status !== 'absent' && !row.draft.project_id) {
       openAssignment([row.worker.id], null, status)
       return
     }
@@ -171,7 +173,7 @@ export function AttendancePage() {
   function markProjectPresent(projectId: number) {
     setRows((current) => setProjectAttendanceStatus(current, projectId, 'present'))
     setSaved(false)
-    setNotice('Semua pekerja yang boleh diubah dalam projek ini ditanda hadir.')
+    setNotice('Semua pekerja dalam projek ini ditanda hadir.')
   }
 
   async function copyPreviousAssignments() {
@@ -191,7 +193,7 @@ export function AttendancePage() {
         .map((row) => row.worker.id)
 
       if (!eligibleIds.length) {
-        setNotice('Tiada pembahagian semalam yang boleh disalin untuk pekerja belum diagih.')
+        setNotice('Tiada pembahagian semalam yang boleh disalin.')
         return
       }
 
@@ -206,7 +208,7 @@ export function AttendancePage() {
         }
       }))
       setSaved(false)
-      setNotice(`${eligibleIds.length} pembahagian pekerja disalin daripada semalam. Status masih perlu ditanda.`)
+      setNotice(`${eligibleIds.length} pembahagian pekerja disalin daripada semalam.`)
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -228,9 +230,6 @@ export function AttendancePage() {
     setError('')
     try {
       const operations = rows.map(({ worker, draft }) => {
-        if (draft.existing_id && draft.status === null && !draft.paid) {
-          return client.from('worker_attendance').delete().eq('id', draft.existing_id)
-        }
         if (!draft.status || draft.paid) return Promise.resolve({ error: null })
 
         const values = {
@@ -267,71 +266,64 @@ export function AttendancePage() {
     }
   }
 
-  function toggleDetails(workerId: number) {
-    setExpandedWorkerIds((current) => current.includes(workerId)
-      ? current.filter((id) => id !== workerId)
-      : [...current, workerId])
-  }
-
   const unassignedWorkerIds = rows
     .filter((row) => !row.draft.project_id && !row.draft.paid)
     .map((row) => row.worker.id)
 
   return <>
     <PageHeader
-      eyebrow="Admin check-in"
+      eyebrow="Attendance"
       title="Kehadiran harian"
-      description="Bahagikan pekerja mengikut projek, kemudian tandakan kehadiran mereka."
-      action={<button className="btn-primary" onClick={() => openAssignment()}>
+      description="Pilih tarikh, tandakan status dan simpan."
+      action={<button className="btn-secondary" onClick={() => openAssignment()}>
         <UsersRound className="h-4 w-4" />Agihkan pekerja
       </button>}
     />
 
-    <section className="card mb-5 p-5">
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+    <section className="card mb-5 p-4 sm:p-5">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <label>
           <span className="field-label">Tarikh</span>
           <input className="field-control" type="date" value={date} onChange={(event) => changeDate(event.target.value)} />
         </label>
         <button className="btn-secondary" type="button" onClick={() => void copyPreviousAssignments()} disabled={copying || loading}>
-          <Copy className="h-4 w-4" />{copying ? 'Menyalin...' : 'Salin pembahagian semalam'}
+          <Copy className="h-4 w-4" />{copying ? 'Menyalin...' : 'Salin projek semalam'}
         </button>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2 text-xs font-black">
-        <StatusPill label="Hadir" value={counts.present} className="bg-emerald-50 text-emerald-700" />
-        <StatusPill label="Separuh" value={counts.half} className="bg-amber-50 text-amber-700" />
-        <StatusPill label="Tidak hadir" value={counts.absent} className="bg-rose-50 text-rose-700" />
-        <StatusPill label="Belum" value={counts.pending} className="bg-slate-100 text-slate-600" />
-        <span className="ml-auto rounded-full bg-sky-50 px-3 py-1.5 text-sky-700">Anggaran {formatMoney(totalEstimate)}</span>
+
+      <div className="mt-4 grid grid-cols-4 gap-2">
+        <StatusSummary label="Hadir" value={counts.present} tone="emerald" />
+        <StatusSummary label="½ Hari" value={counts.half} tone="amber" />
+        <StatusSummary label="Tidak Hadir" value={counts.absent} tone="rose" />
+        <StatusSummary label="Belum" value={counts.pending} tone="slate" />
       </div>
     </section>
 
     {error && <div className="mb-5"><ErrorBlock message={error} /></div>}
-    {saved && <p className="alert-success mb-5 flex items-center gap-2"><Check className="h-4 w-4" />Kehadiran telah disimpan.</p>}
+    {saved && <p className="alert-success mb-5 flex items-center gap-2"><Check className="h-4 w-4" />Attendance telah disimpan.</p>}
     {notice && !saved && <p className="alert-success mb-5 flex items-center gap-2"><Check className="h-4 w-4" />{notice}</p>}
 
     {loading
       ? <LoadingBlock />
       : !rows.length
-        ? <EmptyBlock title="Belum ada pekerja aktif" description="Tambah pekerja sebelum merekod kehadiran." />
-        : <div className="space-y-5">
+        ? <EmptyBlock title="Belum ada pekerja aktif" description="Tambah pekerja sebelum merekod attendance." />
+        : <div className="space-y-4 pb-24 lg:pb-20">
           {groups.map((group) => <ProjectAttendanceGroup
             key={group.key}
             group={group}
-            expandedWorkerIds={expandedWorkerIds}
             onMarkAllPresent={markProjectPresent}
             onOpenAssignment={openAssignment}
             onChooseStatus={chooseStatus}
-            onPatchRow={patchRow}
-            onToggleDetails={toggleDetails}
           />)}
-
-          <div className="sticky bottom-20 z-10 flex justify-end rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur lg:bottom-4">
-            <button className="btn-primary min-w-44" onClick={() => void save()} disabled={saving}>
-              <Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan kehadiran'}
-            </button>
-          </div>
         </div>}
+
+    {!loading && rows.length > 0 && <div className="fixed inset-x-0 bottom-[72px] z-20 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgb(15_23_42/0.10)] backdrop-blur lg:bottom-0 lg:left-72">
+      <div className="mx-auto max-w-6xl px-1 sm:px-6 lg:px-8">
+        <button className="btn-primary w-full" onClick={() => void save()} disabled={saving}>
+          <Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Attendance'}
+        </button>
+      </div>
+    </div>}
 
     {assignmentOpen && <AssignmentSheet
       rows={rows}
@@ -349,226 +341,120 @@ export function AttendancePage() {
   </>
 }
 
-function StatusPill({ label, value, className }: { label: string; value: number; className: string }) {
-  return <span className={`rounded-full px-3 py-1.5 ${className}`}>{label} {value}</span>
+function StatusSummary({ label, value, tone }: { label: string; value: number; tone: 'emerald' | 'amber' | 'rose' | 'slate' }) {
+  const styles = {
+    emerald: 'bg-emerald-50 text-emerald-800',
+    amber: 'bg-amber-50 text-amber-800',
+    rose: 'bg-rose-50 text-rose-800',
+    slate: 'bg-slate-100 text-slate-700',
+  }
+  return <div className={`rounded-xl px-2 py-3 text-center ${styles[tone]}`}>
+    <p className="text-lg font-black leading-none">{value}</p>
+    <p className="mt-1 truncate text-[9px] font-black uppercase tracking-wide sm:text-[10px]">{label}</p>
+  </div>
 }
 
 function ProjectAttendanceGroup({
   group,
-  expandedWorkerIds,
   onMarkAllPresent,
   onOpenAssignment,
   onChooseStatus,
-  onPatchRow,
-  onToggleDetails,
 }: {
   group: AttendanceGroup
-  expandedWorkerIds: number[]
   onMarkAllPresent: (projectId: number) => void
   onOpenAssignment: (workerIds?: number[], preferredProjectId?: number | null) => void
-  onChooseStatus: (row: AttendanceRow, status: AttendanceStatus | null) => void
-  onPatchRow: (workerId: number, patch: Partial<AttendanceDraft>) => void
-  onToggleDetails: (workerId: number) => void
+  onChooseStatus: (row: AttendanceRow, status: AttendanceStatus) => void
 }) {
   const groupCounts = attendanceCounts(group.rows)
-  const estimate = estimatedDailyLabour(group.rows)
   const editableRows = group.rows.filter((row) => !row.draft.paid)
   const project = group.project
 
-  return <section className={`overflow-hidden rounded-3xl border shadow-sm ${project ? 'border-sky-200 bg-white' : 'border-slate-300 bg-slate-100/70'}`}>
-    <header className={`p-4 sm:p-5 ${project ? 'bg-sky-50/80' : 'bg-slate-200/70'}`}>
-      <div className="flex items-start justify-between gap-3">
+  return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <header className="border-b border-slate-100 bg-slate-50/80 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Folder className={`h-5 w-5 shrink-0 ${project ? 'text-sky-700' : 'text-slate-500'}`} />
-            <p className={`text-xs font-black uppercase tracking-wider ${project ? 'text-sky-700' : 'text-slate-500'}`}>
-              {project?.project_no ?? 'Belum diagihkan'}
-            </p>
-          </div>
-          <h2 className="mt-1 truncate text-lg font-black">{project?.project_name ?? 'Pekerja tanpa projek'}</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            {group.rows.length} pekerja · {groupCounts.pending} belum ditanda
-            {project && ` · Anggaran ${formatMoney(estimate)}`}
-          </p>
+          <h2 className="truncate text-base font-black text-slate-950">
+            {project ? projectAlias(project) : 'Belum diagihkan'}
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">{group.rows.length} pekerja · {groupCounts.pending} belum ditanda</p>
         </div>
         {project
           ? <button
-            className="btn-secondary shrink-0 px-3"
+            className="btn-secondary min-h-10 shrink-0 px-3 text-xs"
             type="button"
             onClick={() => onMarkAllPresent(project.id)}
             disabled={!editableRows.length}
           >
-            <Check className="h-4 w-4" /><span className="hidden sm:inline">Semua </span>hadir
+            <Check className="h-4 w-4" />Tandakan semua hadir
           </button>
-          : <button className="btn-primary shrink-0 px-3" type="button" onClick={() => onOpenAssignment(editableRows.map((row) => row.worker.id))}>
+          : <button className="btn-secondary min-h-10 shrink-0 px-3 text-xs" type="button" onClick={() => onOpenAssignment(editableRows.map((row) => row.worker.id))}>
             <UsersRound className="h-4 w-4" />Agihkan
           </button>}
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-black">
-        <StatusPill label="H" value={groupCounts.present} className="bg-white text-emerald-700" />
-        <StatusPill label="½" value={groupCounts.half} className="bg-white text-amber-700" />
-        <StatusPill label="X" value={groupCounts.absent} className="bg-white text-rose-700" />
-      </div>
     </header>
 
-    <div className="space-y-3 p-3 sm:p-4">
-      {group.rows.map((row) => <WorkerAttendanceCard
+    <div className="divide-y divide-slate-100">
+      {group.rows.map((row) => <WorkerAttendanceRow
         key={row.worker.id}
         row={row}
         project={project}
-        expanded={expandedWorkerIds.includes(row.worker.id)}
         onOpenAssignment={onOpenAssignment}
         onChooseStatus={onChooseStatus}
-        onPatchRow={onPatchRow}
-        onToggleDetails={onToggleDetails}
       />)}
     </div>
   </section>
 }
 
-function WorkerAttendanceCard({
+function WorkerAttendanceRow({
   row,
   project,
-  expanded,
   onOpenAssignment,
   onChooseStatus,
-  onPatchRow,
-  onToggleDetails,
 }: {
   row: AttendanceRow
   project: Project | null
-  expanded: boolean
   onOpenAssignment: (workerIds?: number[], preferredProjectId?: number | null) => void
-  onChooseStatus: (row: AttendanceRow, status: AttendanceStatus | null) => void
-  onPatchRow: (workerId: number, patch: Partial<AttendanceDraft>) => void
-  onToggleDetails: (workerId: number) => void
+  onChooseStatus: (row: AttendanceRow, status: AttendanceStatus) => void
 }) {
   const { worker, draft } = row
-  const estimated = worker.pay_type === 'daily' && draft.status
-    ? calculateDailyWage(draft.status, draft.daily_rate_snapshot, draft.overtime_hours, draft.overtime_rate)
-    : 0
 
-  return <article className={`rounded-2xl border bg-white p-4 ${draft.paid ? 'border-slate-200 bg-slate-50' : 'border-slate-200'}`}>
-    <div className="flex items-start justify-between gap-3">
+  return <article className={`p-4 ${draft.paid ? 'bg-slate-50/80' : 'bg-white'}`}>
+    <div className="mb-3 flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <h3 className="truncate font-black">{worker.name}</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          {payTypeLabel(worker.pay_type)}{draft.paid ? ' · Ada bayaran · Dikunci' : ''}
+        <h3 className="truncate font-black text-slate-950">{worker.name}</h3>
+        <p className={`mt-1 text-[11px] font-bold ${draft.status === null ? 'text-slate-400' : draft.status === 'present' ? 'text-emerald-700' : draft.status === 'half_day' ? 'text-amber-700' : 'text-rose-700'}`}>
+          {statusText(draft.status)}{draft.paid ? ' · Dikunci' : ''}
         </p>
       </div>
-      <div className="flex shrink-0 items-start gap-2">
-        {worker.pay_type === 'daily' && draft.status && <div className="text-right">
-          <p className="text-sm font-black text-sky-700">{formatMoney(estimated)}</p>
-          <p className="text-[9px] font-semibold text-slate-400">anggaran</p>
-        </div>}
-        <button
-          type="button"
-          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-black text-slate-600 disabled:opacity-50"
-          disabled={draft.paid}
-          onClick={() => onOpenAssignment([worker.id], draft.project_id)}
-        >
-          <ArrowRightLeft className="h-3.5 w-3.5" />{project ? 'Pindah' : 'Projek'}
-        </button>
-      </div>
-    </div>
-
-    <div className="mt-4 grid grid-cols-4 gap-2">
       <button
         type="button"
+        className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-[11px] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-50"
         disabled={draft.paid}
-        onClick={() => onChooseStatus(row, null)}
-        className={`status-button ${draft.status === null ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-500'}`}
+        onClick={() => onOpenAssignment([worker.id], draft.project_id)}
       >
-        —<span>Belum</span>
+        <ArrowRightLeft className="h-3.5 w-3.5" />{project ? 'Tukar projek' : 'Pilih projek'}
       </button>
+    </div>
+
+    <div className="grid grid-cols-3 gap-2">
       {attendanceOptions.map((option) => <button
         type="button"
         key={option.value}
         disabled={draft.paid}
         onClick={() => onChooseStatus(row, option.value)}
-        className={`status-button ${statusButtonClass(draft.status, option.value)}`}
+        className={`min-h-14 rounded-xl border px-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${statusButtonClass(draft.status, option.value)}`}
       >
-        <b>{option.short}</b><span>{option.label}</span>
+        {option.value === 'half_day' ? '½ Hari' : option.label}
       </button>)}
     </div>
-
-    {draft.status && <div className="mt-3">
-      <button
-        type="button"
-        className="flex min-h-10 w-full items-center justify-between rounded-xl bg-slate-50 px-3 text-left text-xs font-bold text-slate-600"
-        onClick={() => onToggleDetails(worker.id)}
-      >
-        <span>
-          {draft.status === 'absent'
-            ? (draft.notes || 'Tambah sebab tidak hadir')
-            : `Kadar ${formatMoney(draft.daily_rate_snapshot)} · OT ${draft.overtime_hours} jam`}
-        </span>
-        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
-
-      {worker.pay_type === 'daily' && draft.status !== 'absent' && draft.daily_rate_snapshot === 0 &&
-        <p className="mt-2 text-xs font-bold text-amber-700">Kadar gaji masih RM0. Buka butiran untuk kemas kini.</p>}
-
-      {expanded && <div className="mt-3 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3">
-        {worker.pay_type === 'daily' && draft.status !== 'absent' && <label>
-          <span className="field-label">Kadar hari</span>
-          <input
-            className="field-control"
-            type="number"
-            min="0"
-            step="0.01"
-            disabled={draft.paid}
-            value={draft.daily_rate_snapshot}
-            onChange={(event) => onPatchRow(worker.id, { daily_rate_snapshot: Number(event.target.value) })}
-          />
-        </label>}
-        {draft.status !== 'absent' && <>
-          <label>
-            <span className="field-label">Jam OT</span>
-            <input
-              className="field-control"
-              type="number"
-              min="0"
-              max="24"
-              step="0.5"
-              disabled={draft.paid}
-              value={draft.overtime_hours}
-              onChange={(event) => onPatchRow(worker.id, { overtime_hours: Number(event.target.value) })}
-            />
-          </label>
-          <label>
-            <span className="field-label">Kadar OT / jam</span>
-            <input
-              className="field-control"
-              type="number"
-              min="0"
-              step="0.01"
-              disabled={draft.paid}
-              value={draft.overtime_rate}
-              onChange={(event) => onPatchRow(worker.id, { overtime_rate: Number(event.target.value) })}
-            />
-          </label>
-        </>}
-        <label className={draft.status === 'absent' ? '' : 'sm:col-span-3'}>
-          <span className="field-label">Catatan</span>
-          <input
-            className="field-control"
-            disabled={draft.paid}
-            value={draft.notes}
-            onChange={(event) => onPatchRow(worker.id, { notes: event.target.value })}
-            placeholder={draft.status === 'absent' ? 'Contoh: cuti atau sakit' : 'Opsyenal'}
-          />
-        </label>
-      </div>}
-    </div>}
   </article>
 }
 
 function statusButtonClass(current: AttendanceStatus | null, option: AttendanceStatus) {
-  if (current !== option) return 'border-slate-200 bg-white text-slate-600'
-  if (option === 'absent') return 'border-rose-500 bg-rose-500 text-white'
-  if (option === 'half_day') return 'border-amber-500 bg-amber-500 text-white'
-  return 'border-emerald-600 bg-emerald-600 text-white'
+  if (current !== option) return 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+  if (option === 'absent') return 'border-rose-600 bg-rose-600 text-white shadow-sm'
+  if (option === 'half_day') return 'border-amber-500 bg-amber-500 text-white shadow-sm'
+  return 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
 }
 
 function AssignmentSheet({
@@ -620,28 +506,28 @@ function AssignmentSheet({
         <div>
           <p className="eyebrow">Pembahagian kerja</p>
           <h2 id="assignment-title" className="mt-1 text-xl font-black">Agihkan pekerja</h2>
-          <p className="mt-1 text-xs text-slate-500">Pilih nama, kemudian tentukan projek kerja.</p>
+          <p className="mt-1 text-xs text-slate-500">Pilih pekerja dan tapak kerja.</p>
         </div>
         <button type="button" onClick={onClose} className="h-10 rounded-xl px-3 text-sm font-black text-slate-500 hover:bg-slate-100">Tutup</button>
       </div>
 
       {pendingStatus && <p className="mb-4 rounded-xl bg-sky-50 p-3 text-xs font-bold text-sky-800">
-        Projek diperlukan sebelum pekerja ini boleh ditanda {pendingStatus === 'present' ? 'hadir' : 'separuh hari'}.
+        Pilih projek sebelum pekerja ini ditanda {pendingStatus === 'present' ? 'hadir' : '½ hari'}.
       </p>}
       {error && <p className="alert-error mb-4">{error}</p>}
 
       <label>
-        <span className="field-label">Projek kerja</span>
+        <span className="field-label">Projek</span>
         <select className="field-control" value={projectId} onChange={(event) => onProjectChange(event.target.value)}>
-          {!pendingStatus && <option value="">Belum diagih / keluarkan daripada projek</option>}
+          {!pendingStatus && <option value="">Belum diagih</option>}
           {projects.map((project) => <option key={project.id} value={project.id}>
-            {project.project_no} · {project.project_name}
+            {projectAlias(project)}
           </option>)}
         </select>
       </label>
 
       <div className="mb-2 mt-5 flex items-center justify-between gap-3">
-        <p className="field-label mb-0">Pekerja ({selectedWorkerIds.length} dipilih)</p>
+        <p className="field-label mb-0">Pekerja ({selectedWorkerIds.length})</p>
         <button
           type="button"
           className="text-xs font-black text-sky-700 disabled:text-slate-400"
@@ -666,7 +552,7 @@ function AssignmentSheet({
             <span className="min-w-0 flex-1">
               <strong className="block truncate text-sm">{row.worker.name}</strong>
               <span className="mt-0.5 block truncate text-[11px] text-slate-500">
-                {currentProject?.project_no ?? 'Belum diagih'}{row.draft.paid ? ' · Sudah dibayar' : ''}
+                {currentProject ? projectAlias(currentProject) : 'Belum diagih'}{row.draft.paid ? ' · Dikunci' : ''}
               </span>
             </span>
           </label>
