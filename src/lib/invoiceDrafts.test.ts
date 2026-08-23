@@ -26,6 +26,11 @@ describe('invoice draft persistence', () => {
     expect(readInvoiceDraft('owner-1', 12)?.items[0]?.description).toBe('Catatan tidak boleh hilang')
   })
 
+  it('rejects an empty local draft so it cannot erase populated server data', () => {
+    saveInvoiceDraft('owner-1', 12, { ...draft(), items: [] })
+    expect(readInvoiceDraft('owner-1', 12)).toBeNull()
+  })
+
   it('rejects a draft stored for another invoice', () => {
     saveInvoiceDraft('owner-1', 12, draft())
     expect(readInvoiceDraft('owner-1', 13)).toBeNull()
