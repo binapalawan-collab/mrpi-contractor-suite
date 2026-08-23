@@ -10,7 +10,8 @@
   .workforce-shell-main{max-width:none!important;padding:0!important}
   .worker-report{font-size:10pt}
   .report-header{border:1px solid #0f172a!important;box-shadow:none!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-  .report-card,.report-current-balance,.report-row{break-inside:avoid;box-shadow:none!important}
+  .report-card,.report-current-balance,.report-row,.attendance-calendar{break-inside:avoid;box-shadow:none!important}
+  .attendance-calendar,.attendance-calendar-legend{print-color-adjust:exact;-webkit-print-color-adjust:exact}
   .report-list{overflow:visible!important}
   footer{break-inside:avoid}
 }
