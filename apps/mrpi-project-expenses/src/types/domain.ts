@@ -1,6 +1,6 @@
 export type Company = { id: number; owner_user_id: string; legal_name: string; trading_name: string | null }
 export type Project = {
-  id: number; company_id: number; owner_user_id: string; project_no: string; project_name: string
+  id: number; company_id: number; owner_user_id: string; project_no: string; project_alias: string | null; project_name: string
   client_name: string; status: string; current_contract_amount: number
 }
 export type ProjectCostOverview = Project & {
