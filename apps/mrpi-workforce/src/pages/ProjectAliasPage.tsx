@@ -1,5 +1,6 @@
-import { BriefcaseBusiness, Check, RotateCcw, Save } from 'lucide-react'
+import { BriefcaseBusiness, CalendarDays, Check, RotateCcw, Save } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'wouter'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '../components/State'
 import { errorMessage } from '../lib/errors'
@@ -114,7 +115,10 @@ export function ProjectAliasPage() {
               </label>
               <p className="mt-2 text-xs leading-5 text-slate-500">Jika diisi, nama ini menggantikan paparan kod <strong>{originalCode}</strong> di attendance, upah, sejarah dan report pekerja.</p>
 
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Link href={`/projects/${project.id}/calendar`} className="btn-secondary mr-auto">
+                  <CalendarDays className="h-4 w-4" />Kalendar tapak
+                </Link>
                 {hasAlias && <button type="button" className="btn-secondary" onClick={() => resetDraft(project)} disabled={busy}>
                   <RotateCcw className="h-4 w-4" />Guna kod asal
                 </button>}
