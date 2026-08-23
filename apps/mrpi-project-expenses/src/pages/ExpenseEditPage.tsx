@@ -22,6 +22,7 @@ import type {
 } from '../types/domain'
 
 const blankItem = (): DraftExpenseItem => ({ description: '', quantity: '1', unit: 'unit', unit_price: '' })
+const projectLabel = (project: Project) => project.project_alias?.trim() || `${project.project_no} · ${project.project_name}`
 
 export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
   const id = Number(expenseId)
@@ -146,7 +147,7 @@ export function ExpenseEditPage({ expenseId }: { expenseId: string }) {
           </div>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="md:col-span-2"><span className="field-label">Projek expenses</span><select className="field-control" required value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Pilih projek</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.project_no} · {project.project_name}</option>)}</select></label>
+          <label className="md:col-span-2"><span className="field-label">Projek expenses</span><select className="field-control" required value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Pilih projek</option>{projects.map((project) => <option key={project.id} value={project.id}>{projectLabel(project)}</option>)}</select></label>
           <label><span className="field-label">Tarikh expenses</span><input type="date" className="field-control" required value={date} onChange={(event) => setDate(event.target.value)} /></label>
           <label><span className="field-label">Kategori</span><select className="field-control" value={category} onChange={(event) => setCategory(event.target.value as ExpenseCategory)}>{expenseCategories.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label><span className="field-label">Pembekal</span><select className="field-control" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Tidak dinyatakan</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
