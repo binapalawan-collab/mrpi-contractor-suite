@@ -8,13 +8,13 @@ import { AttendancePage } from './pages/AttendancePage'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { HistoryPage } from './pages/HistoryPage'
+import { NamedWorkerReportPage } from './pages/NamedWorkerReportPage'
 import { ProjectAliasPage } from './pages/ProjectAliasPage'
 import { SetupRequiredPage } from './pages/SetupRequiredPage'
 import { SiteCalendarPage } from './pages/SiteCalendarPage'
 import { UpdatePasswordPage } from './pages/UpdatePasswordPage'
 import { WagePage } from './pages/WagePage'
 import { WorkerPage } from './pages/WorkerPage'
-import { WorkerReportPage } from './pages/WorkerReportPage'
 
 export default function App() {
   if (!isSupabaseConfigured) return <SetupRequiredPage />
@@ -33,7 +33,7 @@ function Protected() {
     <Route path="/attendance"><AttendancePage /></Route>
     <Route path="/projects/:projectId/calendar">{({ projectId }) => <SiteCalendarPage projectId={projectId} />}</Route>
     <Route path="/projects"><ProjectAliasPage /></Route>
-    <Route path="/workers/:workerId/report">{({ workerId }) => <WorkerReportPage workerId={workerId} />}</Route>
+    <Route path="/workers/:workerId/report">{({ workerId }) => <NamedWorkerReportPage workerId={workerId} />}</Route>
     <Route path="/workers"><WorkerPage /></Route>
     <Route path="/wages"><WagePage /></Route>
     <Route path="/history"><HistoryPage /></Route>
