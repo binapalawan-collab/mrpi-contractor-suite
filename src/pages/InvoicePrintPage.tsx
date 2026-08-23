@@ -25,6 +25,7 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
   const [project, setProject] = useState<Project | null>(null)
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [items, setItems] = useState<InvoiceItem[]>([])
+  const [projectInvoices, setProjectInvoices] = useState<Invoice[]>([])
   const [snapshot, setSnapshot] = useState<InvoiceDocumentSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -50,14 +51,15 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
         setLoading(false)
         return
       }
-      const [projectResult, invoiceResult, itemResult, snapshotResult] = await Promise.all([
+      const [projectResult, invoiceResult, itemResult, invoiceListResult, snapshotResult] = await Promise.all([
         client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
         client.from('invoices').select('*').eq('id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
         client.from('invoice_items').select('*').eq('invoice_id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', companyRow.id).order('sort_order').order('id'),
+        client.from('invoices').select('*').eq('project_id', numericProjectId).eq('company_id', companyRow.id).order('invoice_date').order('id'),
         client.from('invoice_snapshots').select('snapshot_data').eq('invoice_id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
       ])
       if (!mounted) return
-      const loadError = projectResult.error ?? invoiceResult.error ?? itemResult.error ?? snapshotResult.error
+      const loadError = projectResult.error ?? invoiceResult.error ?? itemResult.error ?? invoiceListResult.error ?? snapshotResult.error
       if (loadError || !projectResult.data || !invoiceResult.data) setError(loadError?.message ?? 'Dokumen invois tidak ditemui.')
       else {
         const parsed = snapshotResult.data ? parseInvoiceSnapshot(snapshotResult.data.snapshot_data) : null
@@ -67,6 +69,7 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
           setProject(projectResult.data)
           setInvoice(invoiceResult.data)
           setItems(itemResult.data ?? [])
+          setProjectInvoices(invoiceListResult.data ?? [])
           setSnapshot(parsed)
         }
       }
@@ -80,7 +83,7 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Menyediakan invois...</div>
   if (error || !company || !project || !invoice) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error || 'Dokumen tidak dapat dibuka.'}</div>
 
-  const document = snapshot ?? liveDocument(company, project, invoice, items)
+  const document = snapshot ?? liveDocument(company, project, invoice, items, projectInvoices)
   const brand = (document.company.trading_name || document.company.legal_name).toLocaleUpperCase('en-MY')
   const companyAddress = [document.company.address_line_1, document.company.address_line_2, [document.company.postcode, document.company.city].filter(Boolean).join(' '), document.company.state].filter(Boolean).join(', ')
   const projectAddress = [document.project.address_line_1, document.project.address_line_2, [document.project.postcode, document.project.city].filter(Boolean).join(' '), document.project.state].filter(Boolean).join(', ')
@@ -102,7 +105,7 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
 
           <section className="py-7 text-center"><p className="text-xs font-black tracking-[0.14em] text-amber-700">TUNTUTAN UNTUK</p><h1 className="mx-auto mt-2 max-w-3xl text-xl font-black leading-8">{document.invoice.title}</h1>{document.invoice.due_date && <p className="mt-2 text-xs font-bold text-slate-500">Tarikh akhir bayaran: {formatLongDate(document.invoice.due_date)}</p>}</section>
 
-          <table className="quotation-table w-full border-collapse text-left text-xs"><thead><tr className="bg-slate-950 text-white"><th className="w-10 px-3 py-3 text-center">Bil.</th><th className="px-3 py-3">Keterangan tuntutan</th><th className="w-28 px-3 py-3 text-right">Asas</th><th className="w-32 px-3 py-3 text-right">Jumlah (RM)</th></tr></thead><tbody>{document.items.map((item, index) => <tr key={`${item.description}-${index}`} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{index + 1}</td><td className="px-3 py-3"><p className="font-black leading-5">{item.description}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{invoiceSourceLabel(item.source_type)}</p></td><td className="px-3 py-3 text-right">{item.percentage ? `${Number(item.percentage).toLocaleString('ms-MY', { maximumFractionDigits: 3 })}%` : 'Jumlah'}</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(item.amount))}</td></tr>)}</tbody></table>
+          <table className="quotation-table w-full border-collapse text-left text-xs"><thead><tr className="bg-slate-950 text-white"><th className="w-10 px-3 py-3 text-center">Bil.</th><th className="px-3 py-3">Keterangan tuntutan</th><th className="w-28 px-3 py-3 text-right">Asas</th><th className="w-32 px-3 py-3 text-right">Jumlah (RM)</th></tr></thead><tbody>{document.items.map((item, index) => <tr key={`${item.description}-${index}`} className="border-b border-slate-200 align-top"><td className="px-3 py-3 text-center font-bold text-slate-500">{index + 1}</td><td className="px-3 py-3"><p className="font-black leading-5">{item.description}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{invoiceSourceLabel(item.source_type)}</p></td><td className="px-3 py-3 text-right">{invoiceBasisLabel(item, document.invoice.contract_value, document.invoice.previous_billed_amount)}</td><td className="px-3 py-3 text-right font-black">{formatNumber(Number(item.amount))}</td></tr>)}</tbody></table>
 
           <section className="ml-auto mt-5 w-full max-w-md rounded-2xl bg-slate-950 p-5 text-white"><div className="space-y-3 text-sm"><MoneyRow label="Nilai kontrak semasa" value={formatMoney(Number(document.invoice.contract_value))} /><MoneyRow label="Invois sebelum ini" value={formatMoney(Number(document.invoice.previous_billed_amount))} /><div className="border-t border-white/15 pt-3"><MoneyRow label="JUMLAH INVOIS INI" value={formatMoney(Number(document.invoice.total_amount))} tone="text-amber-300 text-xl" /></div><MoneyRow label="Baki kontrak selepas invois" value={formatMoney(Number(document.invoice.contract_balance_after))} /></div></section>
 
@@ -117,7 +120,20 @@ export function InvoicePrintPage({ projectId, invoiceId }: { projectId: string; 
   )
 }
 
-function liveDocument(company: Company, project: Project, invoice: Invoice, items: InvoiceItem[]): InvoiceDocumentSnapshot {
+function liveDocument(company: Company, project: Project, invoice: Invoice, items: InvoiceItem[], projectInvoices: Invoice[]): InvoiceDocumentSnapshot {
+  const contractValue = Number(invoice.contract_value_snapshot ?? project.current_contract_amount)
+  const previousBilled = invoice.previous_billed_amount_snapshot === null
+    ? projectInvoices.reduce((total, row) => (
+      row.id !== invoice.id && (row.status === 'issued' || row.status === 'partially_paid' || row.status === 'paid')
+        ? total + Number(row.total_amount)
+        : total
+    ), 0)
+    : Number(invoice.previous_billed_amount_snapshot)
+  const invoiceTotal = Number(invoice.total_amount)
+  const contractBalanceAfter = invoice.contract_balance_after_snapshot === null
+    ? Math.max(0, Math.round((contractValue - previousBilled - invoiceTotal) * 100) / 100)
+    : Number(invoice.contract_balance_after_snapshot)
+
   return {
     version: 1,
     invoice: {
@@ -126,10 +142,10 @@ function liveDocument(company: Company, project: Project, invoice: Invoice, item
       due_date: invoice.due_date,
       title: invoice.title,
       notes: invoice.notes,
-      total_amount: Number(invoice.total_amount),
-      contract_value: Number(invoice.contract_value_snapshot ?? project.current_contract_amount),
-      previous_billed_amount: Number(invoice.previous_billed_amount_snapshot ?? 0),
-      contract_balance_after: Number(invoice.contract_balance_after_snapshot ?? Math.max(0, Number(project.current_contract_amount) - Number(invoice.total_amount))),
+      total_amount: invoiceTotal,
+      contract_value: contractValue,
+      previous_billed_amount: previousBilled,
+      contract_balance_after: contractBalanceAfter,
       issued_at: invoice.issued_at ?? invoice.updated_at,
     },
     company: {
@@ -145,6 +161,22 @@ function liveDocument(company: Company, project: Project, invoice: Invoice, item
     },
     items: items.map((item) => ({ source_type: item.source_type as InvoiceDocumentSnapshot['items'][number]['source_type'], variation_order_id: item.variation_order_id, description: item.description, percentage: item.percentage, amount: Number(item.amount) })),
   }
+}
+
+function invoiceBasisLabel(item: InvoiceDocumentSnapshot['items'][number], contractValue: number, previousBilled: number) {
+  if (item.percentage === null) return 'Jumlah'
+
+  const percentage = Number(item.percentage)
+  const amount = Number(item.amount)
+  const percentageAmount = Math.round(contractValue * percentage) / 100
+  if (Math.abs(percentageAmount - amount) < 0.01) {
+    return `${percentage.toLocaleString('ms-MY', { maximumFractionDigits: 3 })}%`
+  }
+
+  const remainingBeforeInvoice = Math.max(0, Math.round((contractValue - previousBilled) * 100) / 100)
+  if (Math.abs(remainingBeforeInvoice - amount) < 0.01) return 'Baki'
+
+  return 'Jumlah'
 }
 
 function MoneyRow({ label, value, tone = '' }: { label: string; value: string; tone?: string }) {
