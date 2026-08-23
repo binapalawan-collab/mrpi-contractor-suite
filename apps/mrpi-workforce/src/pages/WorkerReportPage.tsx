@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'wouter'
 import { EmptyBlock, ErrorBlock, LoadingBlock } from '../components/State'
 import { errorMessage } from '../lib/errors'
+import { buildReportCalendarMonths, type ReportCalendarMonth } from '../lib/reportCalendar'
 import {
   loadCompany,
   loadProjects,
@@ -94,6 +95,11 @@ export function WorkerReportPage({ workerId }: { workerId: string }) {
   const totals = useMemo(() => buildWorkerReportTotals(attendance, advances, payments), [attendance, advances, payments])
   const projectRows = useMemo(() => buildWorkerProjectReports(attendance, advances, payments), [attendance, advances, payments])
   const projectMap = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects])
+  const attendanceMap = useMemo(() => new Map(attendance.map((record) => [record.attendance_date, record])), [attendance])
+  const calendarMonths = useMemo(
+    () => buildReportCalendarMonths(fromDate, toDate, attendance.map((record) => record.attendance_date), today),
+    [attendance, fromDate, toDate, today],
+  )
   const periodLabel = fromDate && toDate
     ? `${formatDate(fromDate)} – ${formatDate(toDate)}`
     : fromDate
@@ -202,7 +208,20 @@ export function WorkerReportPage({ workerId }: { workerId: string }) {
         : <ReportEmpty text="Tiada aktiviti projek dalam tempoh ini." />}
     </ReportSection>
 
-    <ReportSection icon={CalendarDays} title="Butiran attendance" description={`${attendance.length} rekod dalam tempoh dipilih.`}>
+    <ReportSection icon={CalendarDays} title="Kalendar attendance" description="Marking kehadiran bulanan untuk pekerja ini.">
+      <AttendanceLegend />
+      <div className="mt-3 space-y-4">{calendarMonths.map((month) => <AttendanceCalendar
+        key={month.key}
+        month={month}
+        attendanceMap={attendanceMap}
+        projectMap={projectMap}
+        fromDate={fromDate}
+        toDate={toDate}
+        today={today}
+      />)}</div>
+    </ReportSection>
+
+    <ReportSection icon={ReceiptText} title="Butiran attendance" description={`${attendance.length} rekod dalam tempoh dipilih.`}>
       {attendance.length
         ? <div className="report-list divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">{attendance.map((record) => {
           const project = record.project_id ? projectMap.get(record.project_id) : null
@@ -294,6 +313,86 @@ function ReportSection({ icon: Icon, title, description, children }: { icon: typ
     </div>
     {children}
   </section>
+}
+
+const calendarDayNames = [
+  { short: 'Is', full: 'Isnin' },
+  { short: 'Se', full: 'Selasa' },
+  { short: 'Ra', full: 'Rabu' },
+  { short: 'Kh', full: 'Khamis' },
+  { short: 'Ju', full: 'Jumaat' },
+  { short: 'Sa', full: 'Sabtu' },
+  { short: 'Ah', full: 'Ahad' },
+]
+
+function AttendanceLegend() {
+  return <div className="attendance-calendar-legend flex flex-wrap gap-2">
+    <LegendItem marker="✓" label="Full day" style="border-emerald-300 bg-emerald-50 text-emerald-800" />
+    <LegendItem marker="½" label="½ day" style="border-amber-300 bg-amber-50 text-amber-800" />
+    <LegendItem marker="×" label="Tidak hadir" style="border-rose-300 bg-rose-50 text-rose-800" />
+    <LegendItem marker="—" label="Tiada rekod" style="border-slate-200 bg-white text-slate-500" />
+  </div>
+}
+
+function LegendItem({ marker, label, style }: { marker: string; label: string; style: string }) {
+  return <span className={`inline-flex min-h-8 items-center gap-2 rounded-lg border px-2.5 text-xs font-black ${style}`}><b className="text-base leading-none">{marker}</b>{label}</span>
+}
+
+function AttendanceCalendar({
+  month,
+  attendanceMap,
+  projectMap,
+  fromDate,
+  toDate,
+  today,
+}: {
+  month: ReportCalendarMonth
+  attendanceMap: Map<string, Attendance>
+  projectMap: Map<number, Project>
+  fromDate: string
+  toDate: string
+  today: string
+}) {
+  return <article className="attendance-calendar overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
+      <h3 className="font-black capitalize">{month.label}</h3>
+    </div>
+    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+      {calendarDayNames.map((day) => <div key={day.full} className="px-1 py-2 text-center text-[9px] font-black uppercase tracking-wide text-slate-500 sm:text-[10px]"><span className="sm:hidden">{day.short}</span><span className="hidden sm:inline">{day.full}</span></div>)}
+    </div>
+    <div className="grid grid-cols-7 gap-px bg-slate-200">{month.dates.map((date, index) => {
+      if (!date) return <div key={`empty-${index}`} className="min-h-20 bg-slate-50 sm:min-h-28" aria-hidden="true" />
+      const record = attendanceMap.get(date)
+      const project = record?.project_id ? projectMap.get(record.project_id) : null
+      const withinPeriod = (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
+      return <CalendarDay key={date} date={date} record={record} project={project} withinPeriod={withinPeriod} isToday={date === today} />
+    })}</div>
+  </article>
+}
+
+function CalendarDay({ date, record, project, withinPeriod, isToday }: { date: string; record?: Attendance; project?: Project | null; withinPeriod: boolean; isToday: boolean }) {
+  const status = record?.status
+  const statusStyle = status === 'present'
+    ? 'bg-emerald-50 text-emerald-900'
+    : status === 'half_day'
+      ? 'bg-amber-50 text-amber-900'
+      : status === 'absent'
+        ? 'bg-rose-50 text-rose-900'
+        : 'bg-white text-slate-500'
+  const marker = status === 'present' ? '✓' : status === 'half_day' ? '½' : status === 'absent' ? '×' : ''
+  const shortLabel = status === 'present' ? 'Penuh' : status === 'half_day' ? '½ hari' : status === 'absent' ? 'Tidak hadir' : 'Tiada rekod'
+  const description = record ? `${formatDate(date)} · ${attendanceLabel(record.status)} · ${project?.project_no || 'Tiada projek'}` : `${formatDate(date)} · Tiada rekod`
+
+  return <div title={description} className={`relative min-h-20 min-w-0 p-1.5 sm:min-h-28 sm:p-2 ${statusStyle} ${withinPeriod ? '' : 'opacity-40'}`}>
+    <div className="flex items-start justify-between gap-1">
+      <time dateTime={date} className={`grid h-6 min-w-6 place-items-center rounded-full text-[11px] font-black sm:text-xs ${isToday ? 'bg-sky-600 text-white' : ''}`}>{Number(date.slice(-2))}</time>
+      {marker && <span className="text-lg font-black leading-none sm:text-xl" aria-label={shortLabel}>{marker}</span>}
+    </div>
+    {record && <div className="mt-1 min-w-0">
+      <p className="hidden text-[10px] font-black sm:block">{shortLabel}</p>
+      <p className="mt-0.5 truncate text-[8px] font-bold opacity-70 sm:text-[10px]">{project?.project_no || 'Tiada projek'}</p>
+    </div>}
+  </div>
 }
 
 function ProjectCard({ row, project, dailyWorker }: { row: WorkerProjectReport; project?: Project; dailyWorker: boolean }) {
