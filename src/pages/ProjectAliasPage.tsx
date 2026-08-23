@@ -21,13 +21,12 @@ export function ProjectAliasPage() {
     setLoading(true)
     setError('')
     try {
-      const client = supabase as any
-      const { data, error: loadError } = await client
+      const { data, error: loadError } = await supabase
         .from('projects')
         .select('id,project_no,project_alias')
         .order('updated_at', { ascending: false })
       if (loadError) throw loadError
-      const rows = (data ?? []) as AliasProject[]
+      const rows = (data ?? []) as unknown as AliasProject[]
       setProjects(rows)
       setDrafts(Object.fromEntries(rows.map((project) => [project.id, project.project_alias ?? ''])))
     } catch (reason) {
@@ -46,10 +45,9 @@ export function ProjectAliasPage() {
     setNotice('')
     setError('')
     try {
-      const client = supabase as any
-      const { error: saveError } = await client
+      const { error: saveError } = await supabase
         .from('projects')
-        .update({ project_alias: value || null })
+        .update({ project_alias: value || null } as never)
         .eq('id', project.id)
       if (saveError) throw saveError
       await load()
