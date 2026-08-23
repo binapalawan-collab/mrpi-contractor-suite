@@ -1,4 +1,4 @@
-import { CalendarDays, CheckCircle2, Clock3, FolderKanban, Search, WalletCards } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock3, FolderKanban, Search, Tags, WalletCards } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
@@ -97,10 +97,13 @@ export function ProjectListPage() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <p className="text-sm font-bold text-amber-700">Daripada sebutharga diterima</p>
-        <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Pengurusan Projek</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Setiap projek bermula daripada sebutharga yang diterima. Skop dan nilai kontrak asal kekal dikunci sebagai baseline projek.</p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-bold text-amber-700">Daripada sebutharga diterima</p>
+          <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Pengurusan Projek</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Setiap projek bermula daripada sebutharga yang diterima. Skop dan nilai kontrak asal kekal dikunci sebagai baseline projek.</p>
+        </div>
+        <Link href="/projek-alias" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"><Tags className="h-4 w-4" />Project Alias</Link>
       </header>
 
       {error && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
