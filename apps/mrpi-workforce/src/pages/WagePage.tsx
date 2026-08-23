@@ -1,10 +1,8 @@
 import {
   Banknote,
-  CalendarDays,
   CircleAlert,
   HandCoins,
   Plus,
-  WalletCards,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/PageHeader'
@@ -27,15 +25,31 @@ type WageGroup = {
   worker: Worker
   project: Project
   rows: Attendance[]
-  earned: number
-  paid: number
   outstanding: number
   start: string
   end: string
 }
 
+type WorkerWageSummary = {
+  worker: Worker
+  groups: WageGroup[]
+  workDays: number
+  outstanding: number
+  advances: number
+  netPay: number
+}
+
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100
+}
+
+function workUnits(row: Attendance) {
+  if (row.status === 'half_day') return 0.5
+  return row.status === 'present' ? 1 : 0
+}
+
+function formatDays(value: number) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)} hari`
 }
 
 export function WagePage() {
@@ -110,8 +124,6 @@ export function WagePage() {
         worker,
         project,
         rows,
-        earned: roundMoney(rows.reduce((sum, row) => sum + row.wage_amount, 0)),
-        paid: roundMoney(rows.reduce((sum, row) => sum + row.paid_wage_amount, 0)),
         outstanding: roundMoney(rows.reduce(
           (sum, row) => sum + outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount),
           0,
@@ -121,6 +133,24 @@ export function WagePage() {
       }]
     })
   }, [attendance, projects, workers])
+
+  const workerSummaries = useMemo(() => workers.flatMap((worker) => {
+    const workerGroups = groups.filter((group) => group.worker.id === worker.id)
+    if (!workerGroups.length) return []
+    const rows = workerGroups.flatMap((group) => group.rows)
+    const outstanding = roundMoney(workerGroups.reduce((sum, group) => sum + group.outstanding, 0))
+    const openAdvances = roundMoney(advances
+      .filter((advance) => advance.worker_id === worker.id)
+      .reduce((sum, advance) => sum + advance.amount, 0))
+    return [{
+      worker,
+      groups: workerGroups,
+      workDays: rows.reduce((sum, row) => sum + workUnits(row), 0),
+      outstanding,
+      advances: openAdvances,
+      netPay: roundMoney(Math.max(0, outstanding - openAdvances)),
+    } satisfies WorkerWageSummary]
+  }), [advances, groups, workers])
 
   const selectedWorker = workers.find((worker) => worker.id === Number(workerId))
   const eligibleAdvances = advances.filter((advance) => (
@@ -165,28 +195,63 @@ export function WagePage() {
   } else if (selectedWorker.pay_type === 'contract' && contractGross <= 0) {
     paymentError = 'Masukkan upah kontrak untuk bayaran ini.'
   } else if (deduction > availableForPayment) {
-    paymentError = 'Pendahuluan dipilih melebihi jumlah upah untuk bayaran ini.'
+    paymentError = 'Pinjaman dipilih melebihi jumlah upah untuk bayaran ini.'
   } else if (cashAmount < 0 || settlementTotal <= 0) {
     paymentError = 'Jumlah bayaran mesti melebihi RM0.'
   } else if (selectedWorker.pay_type === 'daily' && settlementTotal > outstandingTotal) {
-    paymentError = 'Tunai dan pendahuluan melebihi baki upah.'
+    paymentError = 'Tunai dan pinjaman melebihi baki upah.'
   }
 
   function resetSelectedAdvances() {
     setSelectedAdvances([])
   }
 
-  function openPayment(group?: WageGroup) {
-    if (group) {
-      setWorkerId(String(group.worker.id))
-      setProjectId(String(group.project.id))
-      setPeriodStart(group.start)
-      setPeriodEnd(group.end)
-    }
+  function setGroupForPayment(group: WageGroup) {
+    setWorkerId(String(group.worker.id))
+    setProjectId(String(group.project.id))
+    setPeriodStart(group.start)
+    setPeriodEnd(group.end)
+  }
+
+  function openWorkerPayment(summary: WorkerWageSummary) {
+    const nextGroup = summary.groups[0]
+    if (!nextGroup) return
+    setGroupForPayment(nextGroup)
     setGrossInput('')
     setCashInput('')
     resetSelectedAdvances()
     setPayOpen(true)
+  }
+
+  function openPayment() {
+    const worker = workers.find((item) => String(item.id) === workerId) ?? workers[0]
+    const group = worker ? groups.find((item) => item.worker.id === worker.id) : undefined
+    if (group) setGroupForPayment(group)
+    setGrossInput('')
+    setCashInput('')
+    resetSelectedAdvances()
+    setPayOpen(true)
+  }
+
+  function selectWorker(value: string) {
+    setWorkerId(value)
+    const group = groups.find((item) => item.worker.id === Number(value))
+    if (group) {
+      setProjectId(String(group.project.id))
+      setPeriodStart(group.start)
+      setPeriodEnd(group.end)
+    }
+    resetSelectedAdvances()
+  }
+
+  function selectProject(value: string) {
+    setProjectId(value)
+    const group = groups.find((item) => item.worker.id === Number(workerId) && item.project.id === Number(value))
+    if (group) {
+      setPeriodStart(group.start)
+      setPeriodEnd(group.end)
+    }
+    resetSelectedAdvances()
   }
 
   async function pay(event: FormEvent<HTMLFormElement>) {
@@ -248,25 +313,25 @@ export function WagePage() {
 
   return <>
     <PageHeader
-      eyebrow="Bayaran sebenar"
-      title="Upah & pendahuluan"
-      description="Bayar penuh atau sebahagian. Hanya tunai yang benar-benar dibayar masuk ke Expenses."
+      eyebrow="Bayaran pekerja"
+      title="Upah & pinjaman"
+      description="Ringkas: hari kerja, hutang upah, pinjaman dan jumlah bersih yang perlu dibayar."
       action={<div className="flex gap-2">
-        <button className="btn-secondary" onClick={() => setAdvanceOpen(true)}><HandCoins className="h-4 w-4" />Pendahuluan</button>
-        <button className="btn-primary" onClick={() => openPayment()}><Plus className="h-4 w-4" />Bayar upah</button>
+        <button className="btn-secondary" onClick={() => setAdvanceOpen(true)}><HandCoins className="h-4 w-4" />Pinjaman</button>
+        <button className="btn-primary" onClick={openPayment}><Plus className="h-4 w-4" />Bayar upah</button>
       </div>}
     />
 
     {error && <div className="mb-5"><ErrorBlock message={error} retry={() => void refresh()} /></div>}
 
-    {advanceOpen && <Modal title="Rekod pendahuluan" close={() => setAdvanceOpen(false)}>
+    {advanceOpen && <Modal title="Rekod pinjaman" close={() => setAdvanceOpen(false)}>
       <form onSubmit={recordAdvance} className="space-y-4">
         <WorkerProjectFields workers={workers} projects={projects} />
         <label><span className="field-label">Tarikh</span><input name="advance_date" type="date" className="field-control" required defaultValue={today} /></label>
         <label><span className="field-label">Amaun</span><input name="amount" type="number" min="0.01" step="0.01" className="field-control" required /></label>
         <label><span className="field-label">Kaedah</span><select name="payment_method" className="field-control" defaultValue="cash">{paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label>
         <label><span className="field-label">Catatan</span><textarea name="notes" className="field-control" /></label>
-        <button className="btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan pendahuluan'}</button>
+        <button className="btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan pinjaman'}</button>
       </form>
     </Modal>}
 
@@ -274,19 +339,13 @@ export function WagePage() {
       <form onSubmit={pay} className="space-y-4">
         <label>
           <span className="field-label">Pekerja</span>
-          <select className="field-control" value={workerId} onChange={(event) => {
-            setWorkerId(event.target.value)
-            resetSelectedAdvances()
-          }}>
+          <select className="field-control" value={workerId} onChange={(event) => selectWorker(event.target.value)}>
             {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {payTypeLabel(worker.pay_type)}</option>)}
           </select>
         </label>
         <label>
           <span className="field-label">Projek</span>
-          <select className="field-control" value={projectId} onChange={(event) => {
-            setProjectId(event.target.value)
-            resetSelectedAdvances()
-          }}>
+          <select className="field-control" value={projectId} onChange={(event) => selectProject(event.target.value)}>
             {projects.map((project) => <option key={project.id} value={project.id}>{project.project_no} · {project.project_name}</option>)}
           </select>
         </label>
@@ -297,18 +356,17 @@ export function WagePage() {
 
         {selectedWorker?.pay_type === 'daily'
           ? <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wider text-sky-700">Upah belum dibayar dalam tempoh</p>
+            <p className="text-xs font-black uppercase tracking-wider text-sky-700">Hutang upah dalam tempoh</p>
             <p className="mt-1 text-2xl font-black text-slate-950">{formatMoney(outstandingTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500">{matchingRows.length} rekod attendance mempunyai baki.</p>
+            <p className="mt-1 text-xs text-slate-500">{matchingRows.reduce((sum, row) => sum + workUnits(row), 0)} hari kerja berbaki.</p>
           </div>
           : <label>
             <span className="field-label">Upah kontrak untuk bayaran ini</span>
             <input type="number" min="0.01" step="0.01" required className="field-control" value={grossInput} onChange={(event) => setGrossInput(event.target.value)} />
-            <span className="mt-1 block text-[11px] text-slate-500">Masukkan amaun yang hendak diselesaikan sekarang, bukan keseluruhan nilai kontrak jika belum dibayar penuh.</span>
           </label>}
 
         {eligibleAdvances.length > 0 && <fieldset>
-          <legend className="field-label">Pendahuluan untuk ditolak</legend>
+          <legend className="field-label">Pinjaman untuk ditolak</legend>
           <div className="space-y-2">{eligibleAdvances.map((advance) => {
             const selected = selectedAdvances.includes(advance.id)
             const exceedsPayment = !selected && roundMoney(deduction + advance.amount) > availableForPayment
@@ -342,20 +400,14 @@ export function WagePage() {
             value={cashInput}
             onChange={(event) => setCashInput(event.target.value)}
           />
-          <span className="mt-1 block text-[11px] text-slate-500">Boleh masukkan amaun lebih rendah. Baki kekal sebagai belum dibayar.</span>
+          <span className="mt-1 block text-[11px] text-slate-500">Boleh bayar sebahagian. Baki akan kekal sebagai hutang upah.</span>
         </label>}
 
         <div className="rounded-2xl bg-slate-50 p-4">
-          <div className="flex justify-between text-sm">
-            <span>{selectedWorker?.pay_type === 'daily' ? 'Baki upah sebelum bayaran' : 'Upah kontrak kali ini'}</span>
-            <strong>{formatMoney(selectedWorker?.pay_type === 'daily' ? outstandingTotal : contractGross)}</strong>
-          </div>
-          <div className="mt-2 flex justify-between text-sm text-amber-700"><span>Tolak pendahuluan</span><strong>{formatMoney(deduction)}</strong></div>
+          <div className="flex justify-between text-sm"><span>Hutang upah</span><strong>{formatMoney(selectedWorker?.pay_type === 'daily' ? outstandingTotal : contractGross)}</strong></div>
+          <div className="mt-2 flex justify-between text-sm text-amber-700"><span>Tolak pinjaman</span><strong>{formatMoney(deduction)}</strong></div>
           <div className="mt-2 flex justify-between text-sm"><span>Tunai dibayar</span><strong className="text-sky-700">{formatMoney(cashAmount)}</strong></div>
-          {selectedWorker?.pay_type === 'daily' && <>
-            <div className="mt-3 flex justify-between border-t border-slate-200 pt-3"><span className="font-black">Jumlah diselesaikan</span><strong>{formatMoney(settlementTotal)}</strong></div>
-            <div className="mt-2 flex justify-between"><span className="font-black">Baki selepas bayaran</span><strong className={balanceAfterPayment > 0 ? 'text-rose-600' : 'text-emerald-700'}>{formatMoney(balanceAfterPayment)}</strong></div>
-          </>}
+          {selectedWorker?.pay_type === 'daily' && <div className="mt-3 flex justify-between border-t border-slate-200 pt-3"><span className="font-black">Baki selepas bayaran</span><strong className={balanceAfterPayment > 0 ? 'text-rose-600' : 'text-emerald-700'}>{formatMoney(balanceAfterPayment)}</strong></div>}
         </div>
 
         <label><span className="field-label">Tarikh bayar</span><input name="payment_date" type="date" className="field-control" required defaultValue={today} /></label>
@@ -367,38 +419,22 @@ export function WagePage() {
       </form>
     </Modal>}
 
-    <section className="grid gap-3 sm:grid-cols-3">
-      <Summary icon={CalendarDays} label="Kumpulan ada baki" value={String(groups.length)} />
-      <Summary icon={WalletCards} label="Baki upah attendance" value={formatMoney(groups.reduce((sum, group) => sum + group.outstanding, 0))} />
-      <Summary icon={HandCoins} label="Pendahuluan terbuka" value={formatMoney(advances.reduce((sum, advance) => sum + advance.amount, 0))} />
-    </section>
-
-    <div className="mt-6 space-y-3">
-      {groups.map((group) => {
-        const groupAdvances = advances
-          .filter((advance) => advance.worker_id === group.worker.id && advance.project_id === group.project.id)
-          .reduce((sum, advance) => sum + advance.amount, 0)
-        return <article key={`${group.worker.id}:${group.project.id}`} className="card p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-black text-sky-700">{payTypeLabel(group.worker.pay_type)}</span>
-                <span className="text-xs font-black text-slate-400">{group.project.project_no}</span>
-              </div>
-              <h2 className="mt-2 text-lg font-black">{group.worker.name}</h2>
-              <p className="mt-1 text-sm text-slate-500">{group.project.project_name} · {group.rows.length} rekod · {formatDate(group.start)}–{formatDate(group.end)}</p>
-              {group.paid > 0 && <p className="mt-2 text-xs font-bold text-sky-700">Daripada {formatMoney(group.earned)}, {formatMoney(group.paid)} sudah dibayar</p>}
-              {groupAdvances > 0 && <p className="mt-2 text-xs font-bold text-amber-700">Pendahuluan terbuka {formatMoney(groupAdvances)}</p>}
-            </div>
-            <div className="text-left sm:text-right">
-              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Baki upah</p>
-              <p className="mt-1 text-2xl font-black text-sky-700">{formatMoney(group.outstanding)}</p>
-              <button onClick={() => openPayment(group)} className="btn-primary mt-3"><Banknote className="h-4 w-4" />Bayar</button>
-            </div>
+    <div className="space-y-3">
+      {workerSummaries.map((summary) => <article key={summary.worker.id} className="card p-5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-xl font-black">{summary.worker.name}</h2>
           </div>
-        </article>
-      })}
-      {!groups.length && <EmptyBlock title="Tiada baki upah attendance" description="Pekerja kontrak masih boleh dibayar menggunakan butang Bayar upah." />}
+          <div className="grid flex-1 gap-2 sm:grid-cols-4 xl:max-w-3xl">
+            <SimpleMetric label="Tempoh kerja" value={formatDays(summary.workDays)} />
+            <SimpleMetric label="Hutang upah" value={formatMoney(summary.outstanding)} />
+            <SimpleMetric label="Pinjaman" value={formatMoney(summary.advances)} tone="amber" />
+            <SimpleMetric label="Bersih" value={formatMoney(summary.netPay)} tone="sky" strong />
+          </div>
+          <button onClick={() => openWorkerPayment(summary)} className="btn-primary shrink-0"><Banknote className="h-4 w-4" />Bayar</button>
+        </div>
+      </article>)}
+      {!workerSummaries.length && <EmptyBlock title="Tiada hutang upah" description="Pekerja kontrak masih boleh dibayar menggunakan butang Bayar upah." />}
     </div>
   </>
 }
@@ -422,10 +458,10 @@ function WorkerProjectFields({ workers, projects }: { workers: Worker[]; project
   </>
 }
 
-function Summary({ icon: Icon, label, value }: { icon: typeof WalletCards; label: string; value: string }) {
-  return <article className="card p-5">
-    <Icon className="h-5 w-5 text-sky-600" />
-    <p className="mt-4 text-xs font-black uppercase tracking-wider text-slate-400">{label}</p>
-    <p className="mt-1 text-xl font-black">{value}</p>
-  </article>
+function SimpleMetric({ label, value, tone = 'slate', strong = false }: { label: string; value: string; tone?: 'slate' | 'amber' | 'sky'; strong?: boolean }) {
+  const valueClass = tone === 'amber' ? 'text-amber-700' : tone === 'sky' ? 'text-sky-700' : 'text-slate-950'
+  return <div className="rounded-xl bg-slate-50 px-3 py-3">
+    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+    <p className={`mt-1 ${strong ? 'text-xl' : 'text-base'} font-black ${valueClass}`}>{value}</p>
+  </div>
 }
