@@ -230,7 +230,7 @@ export function WorkerReportPage({ workerId }: { workerId: string }) {
         : <ReportEmpty text="Tiada aktiviti projek dalam tempoh ini." />}
     </ReportSection>
 
-    <ReportSection icon={CalendarDays} title="Kalendar attendance" description="Marking kehadiran dan tarikh bayaran pekerja ini.">
+    <ReportSection icon={CalendarDays} title="Kalendar attendance" description="Kehadiran, hari upah yang sudah dilangsaikan, dan tarikh bayaran diterima.">
       <AttendanceLegend />
       <div className="mt-3 space-y-4">{calendarMonths.map((month) => <AttendanceCalendar
         key={month.key}
@@ -353,6 +353,8 @@ function AttendanceLegend() {
     <LegendItem marker="✓" label="Full day" style="border-emerald-300 bg-emerald-50 text-emerald-800" />
     <LegendItem marker="½" label="½ day" style="border-amber-300 bg-amber-50 text-amber-800" />
     <LegendItem marker="×" label="Tidak hadir" style="border-rose-300 bg-rose-50 text-rose-800" />
+    <LegendItem marker="●" label="Upah cover penuh" style="border-violet-300 bg-violet-50 text-violet-800" />
+    <LegendItem marker="◐" label="Upah cover separa" style="border-orange-300 bg-orange-50 text-orange-800" />
     <LegendItem marker={<Banknote className="h-4 w-4" />} label="Bayaran diterima" style="border-sky-300 bg-sky-50 text-sky-800" />
     <LegendItem marker="—" label="Tiada rekod" style="border-slate-200 bg-white text-slate-500" />
   </div>
@@ -422,9 +424,19 @@ function CalendarDay({
         : 'bg-white text-slate-500'
   const marker = status === 'present' ? '✓' : status === 'half_day' ? '½' : status === 'absent' ? '×' : ''
   const shortLabel = status === 'present' ? 'Penuh' : status === 'half_day' ? '½ hari' : status === 'absent' ? 'Tidak hadir' : 'Tiada rekod'
+  const paidAmount = record ? Math.max(0, record.paid_wage_amount) : 0
+  const wageAmount = record ? Math.max(0, record.wage_amount) : 0
+  const hasCoverage = wageAmount > 0 && paidAmount > 0
+  const fullyCovered = hasCoverage && paidAmount >= wageAmount - 0.005
+  const partiallyCovered = hasCoverage && !fullyCovered
   const attendanceDescription = record ? ` · ${attendanceLabel(record.status)} · ${project?.project_no || 'Tiada projek'}` : ' · Tiada rekod attendance'
+  const coverageDescription = fullyCovered
+    ? ` · Upah cover penuh ${formatMoney(paidAmount)} / ${formatMoney(wageAmount)}`
+    : partiallyCovered
+      ? ` · Upah cover separa ${formatMoney(paidAmount)} / ${formatMoney(wageAmount)}`
+      : ''
   const paymentDescription = payment ? ` · Bayaran diterima ${formatMoney(payment.amount)}` : ''
-  const description = `${formatDate(date)}${attendanceDescription}${paymentDescription}`
+  const description = `${formatDate(date)}${attendanceDescription}${coverageDescription}${paymentDescription}`
 
   return <div title={description} className={`relative min-h-20 min-w-0 p-1.5 sm:min-h-28 sm:p-2 ${statusStyle} ${withinPeriod ? '' : 'opacity-40'}`}>
     <div className="flex items-start justify-between gap-1">
@@ -434,6 +446,12 @@ function CalendarDay({
     {record && <div className="mt-1 min-w-0">
       <p className="hidden text-[10px] font-black sm:block">{shortLabel}</p>
       <p className="mt-0.5 truncate text-[8px] font-bold opacity-70 sm:text-[10px]">{project?.project_no || 'Tiada projek'}</p>
+    </div>}
+    {fullyCovered && <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-violet-600 px-1.5 py-1 text-[8px] font-black leading-none text-white shadow-sm sm:text-[9px]" aria-label={`Upah cover penuh ${formatMoney(paidAmount)} daripada ${formatMoney(wageAmount)}`}>
+      <span className="text-[9px] leading-none">●</span><span className="truncate">Cover penuh</span>
+    </div>}
+    {partiallyCovered && <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-orange-500 px-1.5 py-1 text-[8px] font-black leading-none text-white shadow-sm sm:text-[9px]" aria-label={`Upah cover separa ${formatMoney(paidAmount)} daripada ${formatMoney(wageAmount)}`}>
+      <span className="text-[10px] leading-none">◐</span><span className="truncate">Cover separa</span>
     </div>}
     {payment && <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-sky-600 px-1.5 py-1 text-[8px] font-black leading-none text-white shadow-sm sm:text-[10px]" aria-label={`Bayaran diterima ${formatMoney(payment.amount)}`}>
       <Banknote className="h-3 w-3 shrink-0" />
