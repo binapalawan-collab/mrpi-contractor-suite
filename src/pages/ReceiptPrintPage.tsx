@@ -9,7 +9,10 @@ import { formatMoney } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
-type Company = Database['public']['Tables']['companies']['Row'] & { receipt_show_signature_stamp?: boolean }
+type Company = Database['public']['Tables']['companies']['Row'] & {
+  receipt_show_signature_stamp?: boolean
+  owner_position?: string
+}
 type ReceiptAssets = { signature: string | null; stamp: string | null }
 const emptyReceiptAssets: ReceiptAssets = { signature: null, stamp: null }
 
@@ -95,6 +98,7 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
   const brand = (snapshot.company.trading_name || snapshot.company.legal_name).toLocaleUpperCase('en-MY')
   const companyAddress = [snapshot.company.address_line_1, snapshot.company.address_line_2, [snapshot.company.postcode, snapshot.company.city].filter(Boolean).join(' '), snapshot.company.state].filter(Boolean).join(', ')
   const showApproval = Boolean(company.receipt_show_signature_stamp && receiptAssets.signature && receiptAssets.stamp)
+  const ownerPosition = company.owner_position?.trim() || 'Pemilik'
 
   return (
     <div className="print-page-wrap">
@@ -113,13 +117,15 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
           {payment.notes && <section className="mt-6 text-xs leading-5 text-slate-600"><p className="font-black text-slate-950">Nota</p><p className="mt-1 whitespace-pre-line">{payment.notes}</p></section>}
 
           {showApproval && <section aria-label="Pengesahan syarikat" className="mt-8 flex justify-end">
-            <div className="w-[290px] text-center">
+            <div className="w-[300px] text-center">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Disahkan oleh</p>
-              <div className="mt-2 flex min-h-28 items-end justify-center gap-2">
-                <img src={receiptAssets.signature!} alt="Tandatangan syarikat" className="max-h-[76px] w-[160px] object-contain" />
-                <img src={receiptAssets.stamp!} alt="Cop syarikat" className="h-[104px] w-[104px] object-contain" />
+              <div className="relative mx-auto mt-2 h-[118px] w-[250px]">
+                <img src={receiptAssets.signature!} alt="Tandatangan syarikat" className="absolute bottom-1 left-1/2 z-10 max-h-[88px] w-[190px] -translate-x-1/2 object-contain" />
+                <img src={receiptAssets.stamp!} alt="Cop syarikat" className="absolute bottom-0 right-4 z-20 h-[106px] w-[106px] object-contain opacity-90" />
               </div>
+              <div className="mx-auto w-[240px] border-t border-dashed border-slate-500" />
               <p className="mt-2 text-xs font-black text-slate-950">{company.owner_name}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-slate-600">{ownerPosition}</p>
               <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">{brand}</p>
             </div>
           </section>}
