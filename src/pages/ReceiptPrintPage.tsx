@@ -112,7 +112,7 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
 
           {payment.notes && <section className="mt-6 text-xs leading-5 text-slate-600"><p className="font-black text-slate-950">Nota</p><p className="mt-1 whitespace-pre-line">{payment.notes}</p></section>}
 
-          {showApproval && <section className="mt-8 flex justify-end">
+          {showApproval && <section aria-label="Pengesahan syarikat" className="mt-8 flex justify-end">
             <div className="w-[290px] text-center">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Disahkan oleh</p>
               <div className="mt-2 flex min-h-28 items-end justify-center gap-2">
