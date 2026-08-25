@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
 type CompanyRow = Database['public']['Tables']['companies']['Row']
+type CompanyRowWithReceiptSetting = CompanyRow & { receipt_show_signature_stamp?: boolean }
 
 type CompanyAssetPaths = {
   signature_path: string | null
@@ -113,6 +114,7 @@ export function CompanyProfilePage() {
   const [form, setForm] = useState<CompanyForm>(emptyForm)
   const [assetPaths, setAssetPaths] = useState<CompanyAssetPaths>(emptyAssetPaths)
   const [assetUrls, setAssetUrls] = useState<CompanyAssetUrls>(emptyAssetUrls)
+  const [receiptShowSignatureStamp, setReceiptShowSignatureStamp] = useState(false)
   const [assetBusy, setAssetBusy] = useState<CompanyAssetKind | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -134,13 +136,15 @@ export function CompanyProfilePage() {
       if (loadError) {
         setError(loadError.message)
       } else if (data) {
+        const company = data as CompanyRowWithReceiptSetting
         const nextAssetPaths = {
-          signature_path: data.signature_path,
-          stamp_path: data.stamp_path,
+          signature_path: company.signature_path,
+          stamp_path: company.stamp_path,
         }
-        setCompanyId(data.id)
-        setForm(toForm(data))
+        setCompanyId(company.id)
+        setForm(toForm(company))
         setAssetPaths(nextAssetPaths)
+        setReceiptShowSignatureStamp(Boolean(company.receipt_show_signature_stamp))
         try {
           const previewUrls = await createAssetPreviewUrls(nextAssetPaths)
           if (mounted) setAssetUrls(previewUrls)
@@ -164,6 +168,8 @@ export function CompanyProfilePage() {
     const required = [form.legal_name, form.owner_name, form.phone, form.address_line_1, form.postcode, form.city]
     return Math.round((required.filter((value) => value.trim()).length / required.length) * 100)
   }, [form])
+
+  const receiptAssetsReady = Boolean(assetPaths.signature_path && assetPaths.stamp_path)
 
   function update<K extends keyof CompanyForm>(key: K, value: CompanyForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -240,11 +246,11 @@ export function CompanyProfilePage() {
     const label = companyAssetLabel(kind)
     try {
       const pathUpdate = kind === 'signature'
-        ? { signature_path: null }
-        : { stamp_path: null }
+        ? { signature_path: null, receipt_show_signature_stamp: false }
+        : { stamp_path: null, receipt_show_signature_stamp: false }
       const { error: updateError } = await supabase
         .from('companies')
-        .update(pathUpdate)
+        .update(pathUpdate as never)
         .eq('id', companyId)
         .eq('owner_user_id', user.id)
       if (updateError) throw updateError
@@ -253,6 +259,7 @@ export function CompanyProfilePage() {
         ? { ...current, signature_path: null }
         : { ...current, stamp_path: null })
       setAssetUrls((current) => ({ ...current, [kind]: null }))
+      setReceiptShowSignatureStamp(false)
       const { error: storageError } = await supabase.storage.from(companyAssetBucket).remove([currentPath])
       setNotice(storageError
         ? `${label} dibuang daripada profil, tetapi fail private lama tidak dapat dibersihkan sekarang.`
@@ -294,17 +301,18 @@ export function CompanyProfilePage() {
       bank_name: nullable(form.bank_name),
       bank_account_name: nullable(form.bank_account_name),
       bank_account_no: nullable(form.bank_account_no),
+      receipt_show_signature_stamp: receiptAssetsReady && receiptShowSignatureStamp,
     }
 
     try {
       setSaving(true)
       if (companyId) {
-        const { error: updateError } = await supabase.from('companies').update(profileValues).eq('id', companyId)
+        const { error: updateError } = await supabase.from('companies').update(profileValues as never).eq('id', companyId)
         if (updateError) throw updateError
       } else {
         const { data, error: insertError } = await supabase
           .from('companies')
-          .insert({ ...profileValues, owner_user_id: user.id })
+          .insert({ ...profileValues, receipt_show_signature_stamp: false, owner_user_id: user.id } as never)
           .select('id')
           .single()
         if (insertError) throw insertError
@@ -417,7 +425,22 @@ export function CompanyProfilePage() {
             onRemove={() => void removeAsset('stamp')}
           />
         </div>
-        <p className="mt-4 text-xs leading-5 text-slate-500">PNG berlatar lutsinar disyorkan. Format JPG, PNG atau WebP sehingga 5 MB diterima.</p>
+        <p className="mt-4 text-xs leading-5 text-slate-500">Disyorkan PNG berlatar lutsinar tanpa ruang kosong berlebihan. Tandatangan: sekitar 1200 × 500 px. Cop: sekitar 1000 × 1000 px. JPG, PNG atau WebP sehingga 5 MB diterima.</p>
+        <label className={`mt-4 flex items-start gap-3 rounded-2xl border p-4 ${receiptAssetsReady ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+          <input
+            type="checkbox"
+            className="mt-1 h-5 w-5 rounded border-slate-300 accent-emerald-600"
+            checked={receiptAssetsReady && receiptShowSignatureStamp}
+            disabled={!receiptAssetsReady}
+            onChange={(event) => setReceiptShowSignatureStamp(event.target.checked)}
+          />
+          <span>
+            <span className={`block text-sm font-black ${receiptAssetsReady ? 'text-emerald-950' : 'text-slate-500'}`}>Sertakan tandatangan & cop pada resit</span>
+            <span className={`mt-1 block text-xs leading-5 ${receiptAssetsReady ? 'text-emerald-800' : 'text-slate-500'}`}>
+              {receiptAssetsReady ? 'Apabila ditanda dan profil disimpan, semua resit rasmi akan memaparkan kedua-duanya.' : 'Muat naik tandatangan dan cop dahulu untuk membuka pilihan ini.'}
+            </span>
+          </span>
+        </label>
       </ProfileSection>
 
       <div className="sticky bottom-20 z-10 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl shadow-slate-300/60 backdrop-blur lg:bottom-4">
