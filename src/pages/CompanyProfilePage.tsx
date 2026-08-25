@@ -12,7 +12,10 @@ import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
 type CompanyRow = Database['public']['Tables']['companies']['Row']
-type CompanyRowWithReceiptSetting = CompanyRow & { receipt_show_signature_stamp?: boolean }
+type CompanyRowWithReceiptSetting = CompanyRow & {
+  receipt_show_signature_stamp?: boolean
+  owner_position?: string
+}
 
 type CompanyAssetPaths = {
   signature_path: string | null
@@ -29,6 +32,7 @@ type CompanyForm = {
   trading_name: string
   registration_no: string
   owner_name: string
+  owner_position: string
   phone: string
   email: string
   website: string
@@ -53,6 +57,7 @@ const emptyForm: CompanyForm = {
   trading_name: '',
   registration_no: '',
   owner_name: '',
+  owner_position: 'Pemilik',
   phone: '',
   email: '',
   website: '',
@@ -82,9 +87,10 @@ const emptyAssetUrls: CompanyAssetUrls = {
   stamp: null,
 }
 
-function toForm(row: CompanyRow): CompanyForm {
+function toForm(row: CompanyRowWithReceiptSetting): CompanyForm {
+  const source = row as unknown as Record<string, string | null | undefined>
   return Object.fromEntries(
-    Object.keys(emptyForm).map((key) => [key, row[key as keyof CompanyForm] ?? '']),
+    Object.keys(emptyForm).map((key) => [key, source[key] ?? emptyForm[key as keyof CompanyForm]]),
   ) as CompanyForm
 }
 
@@ -165,7 +171,7 @@ export function CompanyProfilePage() {
   }, [user])
 
   const completion = useMemo(() => {
-    const required = [form.legal_name, form.owner_name, form.phone, form.address_line_1, form.postcode, form.city]
+    const required = [form.legal_name, form.owner_name, form.owner_position, form.phone, form.address_line_1, form.postcode, form.city]
     return Math.round((required.filter((value) => value.trim()).length / required.length) * 100)
   }, [form])
 
@@ -283,6 +289,7 @@ export function CompanyProfilePage() {
       trading_name: nullable(form.trading_name),
       registration_no: nullable(form.registration_no),
       owner_name: form.owner_name.trim(),
+      owner_position: form.owner_position.trim() || 'Pemilik',
       phone: form.phone.trim(),
       email: nullable(form.email),
       website: nullable(form.website),
@@ -358,6 +365,7 @@ export function CompanyProfilePage() {
           <Field label="Nama dagangan" value={form.trading_name} onChange={(value) => update('trading_name', value)} placeholder="Jika berbeza" />
           <Field label="No. pendaftaran SSM" value={form.registration_no} onChange={(value) => update('registration_no', value)} />
           <Field label="Nama pemilik / penandatangan" required value={form.owner_name} onChange={(value) => update('owner_name', value)} />
+          <Field label="Jawatan penandatangan" required value={form.owner_position} onChange={(value) => update('owner_position', value)} placeholder="Contoh: Pemilik / Pengarah" />
           <Field label="No. telefon" required type="tel" value={form.phone} onChange={(value) => update('phone', value)} placeholder="01X-XXXXXXX" />
           <Field label="E-mel syarikat" type="email" value={form.email} onChange={(value) => update('email', value)} />
           <div className="sm:col-span-2">
