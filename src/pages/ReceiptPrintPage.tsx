@@ -2,13 +2,16 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { companyAssetBucket } from '../lib/companyAssets'
 import { formatInvoiceDate, parseInvoiceSnapshot, paymentMethodLabel, type Invoice, type InvoiceDocumentSnapshot, type InvoicePayment } from '../lib/invoice'
 import type { Project } from '../lib/project'
 import { formatMoney } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../types/database'
 
-type Company = Database['public']['Tables']['companies']['Row']
+type Company = Database['public']['Tables']['companies']['Row'] & { receipt_show_signature_stamp?: boolean }
+type ReceiptAssets = { signature: string | null; stamp: string | null }
+const emptyReceiptAssets: ReceiptAssets = { signature: null, stamp: null }
 
 export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectId: string; invoiceId: string; paymentId: string }) {
   const { user } = useAuth()
@@ -18,6 +21,7 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [payment, setPayment] = useState<InvoicePayment | null>(null)
   const [snapshot, setSnapshot] = useState<InvoiceDocumentSnapshot | null>(null)
+  const [receiptAssets, setReceiptAssets] = useState<ReceiptAssets>(emptyReceiptAssets)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -43,22 +47,40 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
         setLoading(false)
         return
       }
+      const receiptCompany = companyRow as Company
       const [projectResult, invoiceResult, paymentResult, snapshotResult] = await Promise.all([
-        client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
-        client.from('invoices').select('*').eq('id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
-        client.from('invoice_payments').select('*').eq('id', numericPaymentId).eq('invoice_id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
-        client.from('invoice_snapshots').select('snapshot_data').eq('invoice_id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', companyRow.id).maybeSingle(),
+        client.from('projects').select('*').eq('id', numericProjectId).eq('company_id', receiptCompany.id).maybeSingle(),
+        client.from('invoices').select('*').eq('id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', receiptCompany.id).maybeSingle(),
+        client.from('invoice_payments').select('*').eq('id', numericPaymentId).eq('invoice_id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', receiptCompany.id).maybeSingle(),
+        client.from('invoice_snapshots').select('snapshot_data').eq('invoice_id', numericInvoiceId).eq('project_id', numericProjectId).eq('company_id', receiptCompany.id).maybeSingle(),
       ])
       if (!mounted) return
       const loadError = projectResult.error ?? invoiceResult.error ?? paymentResult.error ?? snapshotResult.error
       const parsed = snapshotResult.data ? parseInvoiceSnapshot(snapshotResult.data.snapshot_data) : null
-      if (loadError || !projectResult.data || !invoiceResult.data || !paymentResult.data || !parsed) setError(loadError?.message ?? 'Rekod resit atau snapshot invois tidak ditemui.')
-      else {
-        setCompany(companyRow)
+      if (loadError || !projectResult.data || !invoiceResult.data || !paymentResult.data || !parsed) {
+        setError(loadError?.message ?? 'Rekod resit atau snapshot invois tidak ditemui.')
+      } else {
+        setCompany(receiptCompany)
         setProject(projectResult.data)
         setInvoice(invoiceResult.data)
         setPayment(paymentResult.data)
         setSnapshot(parsed)
+
+        if (receiptCompany.receipt_show_signature_stamp && receiptCompany.signature_path && receiptCompany.stamp_path) {
+          const requestedPaths = [receiptCompany.signature_path, receiptCompany.stamp_path]
+          const { data: signedAssets, error: assetError } = await client.storage
+            .from(companyAssetBucket)
+            .createSignedUrls(requestedPaths, 60 * 60 * 6)
+          if (!assetError && mounted) {
+            const urlByPath = new Map((signedAssets ?? []).map((item) => [item.path, item.signedUrl]))
+            setReceiptAssets({
+              signature: urlByPath.get(receiptCompany.signature_path) ?? null,
+              stamp: urlByPath.get(receiptCompany.stamp_path) ?? null,
+            })
+          }
+        } else {
+          setReceiptAssets(emptyReceiptAssets)
+        }
       }
       setLoading(false)
     }
@@ -72,6 +94,7 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
 
   const brand = (snapshot.company.trading_name || snapshot.company.legal_name).toLocaleUpperCase('en-MY')
   const companyAddress = [snapshot.company.address_line_1, snapshot.company.address_line_2, [snapshot.company.postcode, snapshot.company.city].filter(Boolean).join(' '), snapshot.company.state].filter(Boolean).join(', ')
+  const showApproval = Boolean(company.receipt_show_signature_stamp && receiptAssets.signature && receiptAssets.stamp)
 
   return (
     <div className="print-page-wrap">
@@ -89,7 +112,17 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
 
           {payment.notes && <section className="mt-6 text-xs leading-5 text-slate-600"><p className="font-black text-slate-950">Nota</p><p className="mt-1 whitespace-pre-line">{payment.notes}</p></section>}
 
-          <footer className="mt-10 border-t border-slate-200 pt-4 text-[10px] leading-4 text-slate-500"><p>Resit ini dijana daripada rekod bayaran sebenar dan tidak boleh diedit atau dipadam melalui aplikasi.</p><p className="mt-1">Dokumen ini tidak memerlukan tandatangan pelanggan atau tandatangan pengguna sistem.</p></footer>
+          {showApproval && <section className="mt-8 flex justify-end">
+            <div className="w-[290px] text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Disahkan oleh</p>
+              <div className="mt-2 flex min-h-28 items-end justify-center gap-2">
+                <img src={receiptAssets.signature!} alt="Tandatangan syarikat" className="max-h-[76px] w-[160px] object-contain" />
+                <img src={receiptAssets.stamp!} alt="Cop syarikat" className="h-[104px] w-[104px] object-contain" />
+              </div>
+              <p className="mt-2 text-xs font-black text-slate-950">{company.owner_name}</p>
+              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">{brand}</p>
+            </div>
+          </section>}
         </div>
       </article>
     </div>
