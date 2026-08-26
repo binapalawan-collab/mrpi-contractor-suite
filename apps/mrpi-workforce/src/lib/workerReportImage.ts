@@ -30,24 +30,23 @@ export async function generateWorkerReportImage(input: WorkerReportImageInput) {
 
   const attendanceMap = new Map(input.attendance.map((record) => [record.attendance_date, record]))
   const projectMap = new Map(input.projects.map((project) => [project.id, project]))
-  const paymentMap = groupTransactions(input.payments, (payment) => payment.payment_date, (payment) => payment.net_amount)
   const advanceMap = groupTransactions(input.advances, (advance) => advance.advance_date, (advance) => advance.amount)
 
-  const earned = roundMoney(input.attendance.reduce((sum, record) => sum + Math.max(0, record.wage_amount), 0))
-  const covered = roundMoney(input.attendance.reduce((sum, record) => sum + Math.max(0, record.paid_wage_amount), 0))
-  const received = roundMoney(input.payments.reduce((sum, payment) => sum + Math.max(0, payment.net_amount), 0))
+  const outstandingWages = roundMoney(input.attendance.reduce(
+    (sum, record) => sum + Math.max(0, record.wage_amount - record.paid_wage_amount),
+    0,
+  ))
   const borrowed = roundMoney(input.advances.reduce((sum, advance) => sum + Math.max(0, advance.amount), 0))
   const fullDays = input.attendance.filter((record) => record.status === 'present').length
   const halfDays = input.attendance.filter((record) => record.status === 'half_day').length
   const absentDays = input.attendance.filter((record) => record.status === 'absent').length
-  const payableDays = fullDays + halfDays * 0.5
   const fullCover = input.attendance.filter(isFullyCovered).length
   const partialCover = input.attendance.filter(isPartiallyCovered).length
 
   ctx.fillStyle = '#f8fafc'
   ctx.fillRect(0, 0, WIDTH, HEIGHT)
 
-  drawHeader(ctx, input, payableDays, earned)
+  drawHeader(ctx, input, outstandingWages, borrowed)
 
   const calendarX = 44
   const calendarY = 184
@@ -88,21 +87,15 @@ export async function generateWorkerReportImage(input: WorkerReportImageInput) {
       height: cellHeight,
       date,
       attendance: date ? attendanceMap.get(date) : undefined,
-      payment: date ? paymentMap.get(date) ?? 0 : 0,
       advance: date ? advanceMap.get(date) ?? 0 : 0,
       projectMap,
     })
   })
 
   drawSidebar(ctx, sidebarX, calendarY, sidebarWidth, {
-    payableDays,
     fullDays,
     halfDays,
     absentDays,
-    earned,
-    covered,
-    received,
-    borrowed,
     fullCover,
     partialCover,
   })
@@ -125,7 +118,7 @@ export function workerReportImageFileName(workerName: string, monthKey: string) 
   return `${slug(workerName) || 'pekerja'}-${monthNames[monthIndex]}-${year}.png`
 }
 
-function drawHeader(ctx: CanvasRenderingContext2D, input: WorkerReportImageInput, payableDays: number, earned: number) {
+function drawHeader(ctx: CanvasRenderingContext2D, input: WorkerReportImageInput, outstandingWages: number, borrowed: number) {
   ctx.fillStyle = '#020617'
   ctx.fillRect(0, 0, WIDTH, 152)
 
@@ -142,17 +135,17 @@ function drawHeader(ctx: CanvasRenderingContext2D, input: WorkerReportImageInput
   ctx.fillText(capitalize(input.month.label), 48, 130)
 
   const cards = [
-    { label: 'KEHADIRAN', value: `${formatUnits(payableDays)} hari` },
-    { label: 'UPAH TERHASIL', value: money(earned) },
+    { label: 'GAJI BELUM DIJELASKAN', value: money(outstandingWages) },
+    { label: 'PINJAMAN', value: money(borrowed) },
   ]
   cards.forEach((card, index) => {
-    const x = 1310 + index * 275
-    roundedRect(ctx, x, 30, 250, 92, 18)
+    const x = 1260 + index * 300
+    roundedRect(ctx, x, 30, 275, 92, 18)
     ctx.fillStyle = '#0f172a'
     ctx.fill()
     ctx.strokeStyle = '#334155'
     ctx.stroke()
-    setFont(ctx, 13, 800)
+    setFont(ctx, 12, 800)
     ctx.fillStyle = '#94a3b8'
     ctx.fillText(card.label, x + 20, 57)
     setFont(ctx, 25, 900)
@@ -168,11 +161,10 @@ function drawCalendarCell(ctx: CanvasRenderingContext2D, input: {
   height: number
   date: string | null
   attendance?: Attendance
-  payment: number
   advance: number
   projectMap: Map<number, Project>
 }) {
-  const { x, y, width, height, date, attendance, payment, advance, projectMap } = input
+  const { x, y, width, height, date, attendance, advance, projectMap } = input
   ctx.fillStyle = date ? '#ffffff' : '#f8fafc'
   ctx.fillRect(x, y, width, height)
   ctx.strokeStyle = '#e2e8f0'
@@ -221,26 +213,16 @@ function drawCalendarCell(ctx: CanvasRenderingContext2D, input: {
     }
   }
 
-  const transactionY = y + height - 32
-  if (payment > 0 && advance > 0) {
-    drawPill(ctx, x + 12, transactionY, `BAYAR ${compactMoney(payment)}`, { background: '#0284c7', foreground: '#ffffff' }, width * 0.52 - 16, 23, 11)
-    drawPill(ctx, x + width * 0.52, transactionY, `PINJAM ${compactMoney(advance)}`, { background: '#d97706', foreground: '#ffffff' }, width * 0.48 - 12, 23, 11)
-  } else if (payment > 0) {
-    drawPill(ctx, x + 12, transactionY, `BAYAR ${compactMoney(payment)}`, { background: '#0284c7', foreground: '#ffffff' }, width - 24, 23, 12)
-  } else if (advance > 0) {
+  if (advance > 0) {
+    const transactionY = y + height - 32
     drawPill(ctx, x + 12, transactionY, `PINJAM ${compactMoney(advance)}`, { background: '#d97706', foreground: '#ffffff' }, width - 24, 23, 12)
   }
 }
 
 function drawSidebar(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, totals: {
-  payableDays: number
   fullDays: number
   halfDays: number
   absentDays: number
-  earned: number
-  covered: number
-  received: number
-  borrowed: number
   fullCover: number
   partialCover: number
 }) {
@@ -255,38 +237,18 @@ function drawSidebar(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.fillStyle = '#0f172a'
   ctx.fillText('RINGKASAN BULAN', x + 24, y + 38)
 
-  const cards: Array<[string, string]> = [
-    ['Hari kerja', `${formatUnits(totals.payableDays)} hari`],
-    ['Bayaran diterima', money(totals.received)],
-    ['Pinjaman diterima', money(totals.borrowed)],
-    ['Upah terhasil', money(totals.earned)],
-    ['Upah telah cover', money(totals.covered)],
-  ]
-  cards.forEach(([label, value], index) => {
-    const cardY = y + 58 + index * 78
-    roundedRect(ctx, x + 20, cardY, width - 40, 64, 14)
-    ctx.fillStyle = index === 1 ? '#f0f9ff' : index === 2 ? '#fffbeb' : '#f8fafc'
-    ctx.fill()
-    setFont(ctx, 13, 800)
-    ctx.fillStyle = '#64748b'
-    ctx.fillText(label.toUpperCase(), x + 36, cardY + 22)
-    setFont(ctx, 22, 900)
-    ctx.fillStyle = '#0f172a'
-    ctx.fillText(value, x + 36, cardY + 50)
-  })
-
-  const detailY = y + 458
+  const detailY = y + 82
   setFont(ctx, 16, 900)
   ctx.fillStyle = '#334155'
   ctx.fillText('ATTENDANCE', x + 24, detailY)
   setFont(ctx, 15, 700)
   ctx.fillStyle = '#64748b'
-  ctx.fillText(`${totals.fullDays} penuh · ${totals.halfDays} separa · ${totals.absentDays} tidak hadir`, x + 24, detailY + 28)
-  ctx.fillText(`${totals.fullCover} cover penuh · ${totals.partialCover} cover separa`, x + 24, detailY + 53)
+  ctx.fillText(`${totals.fullDays} penuh · ${totals.halfDays} separa · ${totals.absentDays} tidak hadir`, x + 24, detailY + 30)
+  ctx.fillText(`${totals.fullCover} cover penuh · ${totals.partialCover} cover separa`, x + 24, detailY + 57)
 
   setFont(ctx, 16, 900)
   ctx.fillStyle = '#334155'
-  ctx.fillText('LEGEND', x + 24, detailY + 102)
+  ctx.fillText('LEGEND', x + 24, detailY + 118)
 
   const legend = [
     ['Penuh', { background: '#dcfce7', foreground: '#166534' }],
@@ -294,14 +256,13 @@ function drawSidebar(ctx: CanvasRenderingContext2D, x: number, y: number, width:
     ['Tidak hadir', { background: '#ffe4e6', foreground: '#9f1239' }],
     ['Upah penuh', { background: '#ede9fe', foreground: '#6d28d9' }],
     ['Upah separa', { background: '#ffedd5', foreground: '#c2410c' }],
-    ['Bayaran', { background: '#e0f2fe', foreground: '#0369a1' }],
     ['Pinjaman', { background: '#fef3c7', foreground: '#a16207' }],
   ] as Array<[string, PillStyle]>
 
   legend.forEach(([label, style], index) => {
     const col = index % 2
     const row = Math.floor(index / 2)
-    drawPill(ctx, x + 24 + col * 185, detailY + 120 + row * 43, label.toUpperCase(), style, 166, 30, 12)
+    drawPill(ctx, x + 24 + col * 185, detailY + 138 + row * 43, label.toUpperCase(), style, 166, 30, 12)
   })
 }
 
