@@ -216,10 +216,8 @@ function drawCalendarCell(ctx: CanvasRenderingContext2D, input: {
 
     if (isFullyCovered(attendance)) {
       drawPill(ctx, x + 16, cursorY, 'UPAH PENUH', { background: '#7c3aed', foreground: '#ffffff' }, Math.min(width - 32, 137), 25, 12)
-      cursorY += 30
     } else if (isPartiallyCovered(attendance)) {
       drawPill(ctx, x + 16, cursorY, 'UPAH SEPARA', { background: '#f97316', foreground: '#ffffff' }, Math.min(width - 32, 143), 25, 12)
-      cursorY += 30
     }
   }
 
