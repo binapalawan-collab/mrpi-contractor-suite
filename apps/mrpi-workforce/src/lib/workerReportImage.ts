@@ -255,7 +255,7 @@ function drawSidebar(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.fillStyle = '#0f172a'
   ctx.fillText('RINGKASAN BULAN', x + 24, y + 38)
 
-  const cards = [
+  const cards: Array<[string, string]> = [
     ['Hari kerja', `${formatUnits(totals.payableDays)} hari`],
     ['Bayaran diterima', money(totals.received)],
     ['Pinjaman diterima', money(totals.borrowed)],
