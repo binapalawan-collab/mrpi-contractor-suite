@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node --input-type=module -e \"import{readFileSync,writeFileSync}from'node:fs';const p='src/lib/workerReportImage.ts';let s=readFileSync(p,'utf8');s=s.replaceAll('UPAH PENUH','TELAH DIBAYAR').replaceAll('Upah penuh','Telah dibayar');writeFileSync(p,s)\" && tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview"
