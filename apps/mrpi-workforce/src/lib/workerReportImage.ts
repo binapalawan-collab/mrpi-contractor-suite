@@ -37,6 +37,7 @@ export async function generateWorkerReportImage(input: WorkerReportImageInput) {
     0,
   ))
   const borrowed = roundMoney(input.advances.reduce((sum, advance) => sum + Math.max(0, advance.amount), 0))
+  const netWage = roundMoney(outstandingWages - borrowed)
   const fullDays = input.attendance.filter((record) => record.status === 'present').length
   const halfDays = input.attendance.filter((record) => record.status === 'half_day').length
   const absentDays = input.attendance.filter((record) => record.status === 'absent').length
@@ -93,6 +94,9 @@ export async function generateWorkerReportImage(input: WorkerReportImageInput) {
   })
 
   drawSidebar(ctx, sidebarX, calendarY, sidebarWidth, {
+    outstandingWages,
+    borrowed,
+    netWage,
     fullDays,
     halfDays,
     absentDays,
@@ -220,6 +224,9 @@ function drawCalendarCell(ctx: CanvasRenderingContext2D, input: {
 }
 
 function drawSidebar(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, totals: {
+  outstandingWages: number
+  borrowed: number
+  netWage: number
   fullDays: number
   halfDays: number
   absentDays: number
@@ -237,7 +244,40 @@ function drawSidebar(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.fillStyle = '#0f172a'
   ctx.fillText('RINGKASAN BULAN', x + 24, y + 38)
 
-  const detailY = y + 82
+  const equationY = y + 64
+  roundedRect(ctx, x + 20, equationY, width - 40, 214, 18)
+  ctx.fillStyle = '#f8fafc'
+  ctx.fill()
+
+  setFont(ctx, 13, 800)
+  ctx.fillStyle = '#64748b'
+  ctx.fillText('GAJI BELUM DIJELASKAN', x + 36, equationY + 28)
+  setFont(ctx, 24, 900)
+  ctx.fillStyle = '#0f172a'
+  ctx.fillText(money(totals.outstandingWages), x + 36, equationY + 58)
+
+  setFont(ctx, 13, 800)
+  ctx.fillStyle = '#64748b'
+  ctx.fillText('- PINJAMAN', x + 36, equationY + 94)
+  setFont(ctx, 24, 900)
+  ctx.fillStyle = '#a16207'
+  ctx.fillText(money(totals.borrowed), x + 36, equationY + 124)
+
+  ctx.strokeStyle = '#cbd5e1'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(x + 36, equationY + 143)
+  ctx.lineTo(x + width - 36, equationY + 143)
+  ctx.stroke()
+
+  setFont(ctx, 13, 900)
+  ctx.fillStyle = '#475569'
+  ctx.fillText('= GAJI BERSIH', x + 36, equationY + 169)
+  setFont(ctx, 31, 900)
+  ctx.fillStyle = totals.netWage >= 0 ? '#047857' : '#b91c1c'
+  ctx.fillText(money(totals.netWage), x + 36, equationY + 205)
+
+  const detailY = y + 326
   setFont(ctx, 16, 900)
   ctx.fillStyle = '#334155'
   ctx.fillText('ATTENDANCE', x + 24, detailY)
