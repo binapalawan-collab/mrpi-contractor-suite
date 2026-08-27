@@ -3,6 +3,7 @@ import {
   CircleAlert,
   HandCoins,
   Plus,
+  Users,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/PageHeader'
@@ -39,6 +40,26 @@ type WorkerWageSummary = {
   netPay: number
 }
 
+type CrewProjectSummary = {
+  leader: Worker
+  project: Project
+  workerCount: number
+  workDays: number
+  outstanding: number
+  advances: number
+  netPay: number
+  start: string
+  end: string
+}
+
+type CrewPaymentRow = {
+  worker: Worker
+  outstanding: number
+  advances: number
+  cash: number
+  workDays: number
+}
+
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100
 }
@@ -56,6 +77,16 @@ function projectOptionLabel(project: Project) {
   return project.workforce_name ? project.project_no : `${project.project_no} · ${project.project_name}`
 }
 
+function deductibleAdvances(rows: WorkerAdvance[], outstanding: number) {
+  let total = 0
+  const sorted = [...rows].sort((a, b) => a.advance_date.localeCompare(b.advance_date) || a.id - b.id)
+  for (const advance of sorted) {
+    if (roundMoney(total + advance.amount) > outstanding) break
+    total = roundMoney(total + advance.amount)
+  }
+  return total
+}
+
 export function WagePage() {
   const today = localDateISO()
   const [workers, setWorkers] = useState<Worker[]>([])
@@ -64,10 +95,15 @@ export function WagePage() {
   const [advances, setAdvances] = useState<WorkerAdvance[]>([])
   const [payOpen, setPayOpen] = useState(false)
   const [advanceOpen, setAdvanceOpen] = useState(false)
+  const [crewPayOpen, setCrewPayOpen] = useState(false)
   const [workerId, setWorkerId] = useState('')
   const [projectId, setProjectId] = useState('')
   const [periodStart, setPeriodStart] = useState(monthStart(today))
   const [periodEnd, setPeriodEnd] = useState(today)
+  const [crewHeadId, setCrewHeadId] = useState('')
+  const [crewProjectId, setCrewProjectId] = useState('')
+  const [crewPeriodStart, setCrewPeriodStart] = useState(monthStart(today))
+  const [crewPeriodEnd, setCrewPeriodEnd] = useState(today)
   const [grossInput, setGrossInput] = useState('')
   const [cashInput, setCashInput] = useState('')
   const [selectedAdvances, setSelectedAdvances] = useState<number[]>([])
@@ -106,8 +142,9 @@ export function WagePage() {
     void refresh()
   }, [refresh])
 
+  const workerMap = useMemo(() => new Map(workers.map((worker) => [worker.id, worker])), [workers])
+
   const groups = useMemo(() => {
-    const workerMap = new Map(workers.map((worker) => [worker.id, worker]))
     const projectMap = new Map(projects.map((project) => [project.id, project]))
     const groupedRows = new Map<string, Attendance[]>()
 
@@ -136,7 +173,7 @@ export function WagePage() {
         end: dates.at(-1)!,
       }]
     })
-  }, [attendance, projects, workers])
+  }, [attendance, projects, workerMap])
 
   const workerSummaries = useMemo(() => workers.flatMap((worker) => {
     const workerGroups = groups.filter((group) => group.worker.id === worker.id)
@@ -155,6 +192,47 @@ export function WagePage() {
       netPay: roundMoney(Math.max(0, outstanding - openAdvances)),
     } satisfies WorkerWageSummary]
   }), [advances, groups, workers])
+
+  const crewProjectSummaries = useMemo(() => {
+    const summaries: CrewProjectSummary[] = []
+    const leaders = workers.filter((worker) => worker.is_crew_leader)
+    for (const leader of leaders) {
+      const crewIds = new Set([leader.id, ...workers.filter((worker) => worker.crew_leader_id === leader.id).map((worker) => worker.id)])
+      const crewGroups = groups.filter((group) => crewIds.has(group.worker.id) && group.worker.pay_type === 'daily')
+      const projectIds = [...new Set(crewGroups.map((group) => group.project.id))]
+      for (const currentProjectId of projectIds) {
+        const projectGroups = crewGroups.filter((group) => group.project.id === currentProjectId)
+        const project = projectGroups[0]?.project
+        if (!project) continue
+        let outstanding = 0
+        let advanceTotal = 0
+        let workDays = 0
+        const dates: string[] = []
+        const owingWorkerIds = new Set<number>()
+        for (const group of projectGroups) {
+          outstanding = roundMoney(outstanding + group.outstanding)
+          workDays += group.rows.reduce((sum, row) => sum + workUnits(row), 0)
+          dates.push(group.start, group.end)
+          owingWorkerIds.add(group.worker.id)
+          const workerAdvanceRows = advances.filter((advance) => advance.worker_id === group.worker.id && advance.project_id === project.id)
+          advanceTotal = roundMoney(advanceTotal + deductibleAdvances(workerAdvanceRows, group.outstanding))
+        }
+        dates.sort()
+        summaries.push({
+          leader,
+          project,
+          workerCount: owingWorkerIds.size,
+          workDays,
+          outstanding,
+          advances: advanceTotal,
+          netPay: roundMoney(Math.max(0, outstanding - advanceTotal)),
+          start: dates[0]!,
+          end: dates.at(-1)!,
+        })
+      }
+    }
+    return summaries.sort((a, b) => a.leader.name.localeCompare(b.leader.name) || a.project.project_no.localeCompare(b.project.project_no))
+  }, [advances, groups, workers])
 
   const selectedWorker = workers.find((worker) => worker.id === Number(workerId))
   const eligibleAdvances = advances.filter((advance) => (
@@ -187,6 +265,44 @@ export function WagePage() {
     : 0
   const availableForPayment = selectedWorker?.pay_type === 'daily' ? outstandingTotal : contractGross
 
+  const selectedCrewLeader = workers.find((worker) => worker.id === Number(crewHeadId) && worker.is_crew_leader)
+  const selectedCrewProject = projects.find((project) => project.id === Number(crewProjectId))
+  const crewPaymentRows = useMemo(() => {
+    if (!selectedCrewLeader || !selectedCrewProject) return []
+    const crewIds = new Set([
+      selectedCrewLeader.id,
+      ...workers.filter((worker) => worker.crew_leader_id === selectedCrewLeader.id).map((worker) => worker.id),
+    ])
+    return workers.flatMap((worker) => {
+      if (!crewIds.has(worker.id) || worker.pay_type !== 'daily') return []
+      const rows = attendance.filter((row) => (
+        row.worker_id === worker.id
+        && row.project_id === selectedCrewProject.id
+        && row.status !== 'absent'
+        && row.attendance_date >= crewPeriodStart
+        && row.attendance_date <= crewPeriodEnd
+        && outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount) > 0
+      ))
+      const outstanding = roundMoney(rows.reduce((sum, row) => sum + outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount), 0))
+      if (outstanding <= 0) return []
+      const workerAdvanceRows = advances.filter((advance) => advance.worker_id === worker.id && advance.project_id === selectedCrewProject.id)
+      const advanceTotal = deductibleAdvances(workerAdvanceRows, outstanding)
+      return [{
+        worker,
+        outstanding,
+        advances: advanceTotal,
+        cash: roundMoney(outstanding - advanceTotal),
+        workDays: rows.reduce((sum, row) => sum + workUnits(row), 0),
+      } satisfies CrewPaymentRow]
+    })
+  }, [advances, attendance, crewPeriodEnd, crewPeriodStart, selectedCrewLeader, selectedCrewProject, workers])
+
+  const crewTotals = useMemo(() => crewPaymentRows.reduce((totals, row) => ({
+    outstanding: roundMoney(totals.outstanding + row.outstanding),
+    advances: roundMoney(totals.advances + row.advances),
+    cash: roundMoney(totals.cash + row.cash),
+  }), { outstanding: 0, advances: 0, cash: 0 }), [crewPaymentRows])
+
   useEffect(() => {
     if (!payOpen || selectedWorker?.pay_type !== 'daily') return
     setCashInput(Math.max(0, roundMoney(outstandingTotal - deduction)).toFixed(2))
@@ -205,6 +321,14 @@ export function WagePage() {
   } else if (selectedWorker.pay_type === 'daily' && settlementTotal > outstandingTotal) {
     paymentError = 'Tunai dan pinjaman melebihi baki upah.'
   }
+
+  const crewPaymentError = !selectedCrewLeader || !selectedCrewProject
+    ? 'Kepala Tukang atau projek tidak sah.'
+    : crewPeriodEnd < crewPeriodStart
+      ? 'Tempoh bayaran kumpulan tidak sah.'
+      : !crewPaymentRows.length
+        ? 'Tiada baki upah pekerja kumpulan dalam tempoh ini.'
+        : ''
 
   function resetSelectedAdvances() {
     setSelectedAdvances([])
@@ -235,6 +359,14 @@ export function WagePage() {
     setCashInput('')
     resetSelectedAdvances()
     setPayOpen(true)
+  }
+
+  function openCrewPayment(summary: CrewProjectSummary) {
+    setCrewHeadId(String(summary.leader.id))
+    setCrewProjectId(String(summary.project.id))
+    setCrewPeriodStart(summary.start)
+    setCrewPeriodEnd(summary.end)
+    setCrewPayOpen(true)
   }
 
   function selectWorker(value: string) {
@@ -280,6 +412,32 @@ export function WagePage() {
       if (paymentRequestError) throw paymentRequestError
       setPayOpen(false)
       resetSelectedAdvances()
+      await refresh()
+    } catch (reason) {
+      setError(errorMessage(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function payCrew(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || crewPaymentError) return
+    const form = new FormData(event.currentTarget)
+    setSaving(true)
+    setError('')
+    try {
+      const { error: crewPaymentRequestError } = await supabase.rpc('record_worker_crew_wage_payment', {
+        p_head_worker_id: Number(crewHeadId),
+        p_project_id: Number(crewProjectId),
+        p_period_start: crewPeriodStart,
+        p_period_end: crewPeriodEnd,
+        p_payment_date: String(form.get('payment_date')),
+        p_payment_method: String(form.get('payment_method')),
+        p_notes: String(form.get('notes') || ''),
+      })
+      if (crewPaymentRequestError) throw crewPaymentRequestError
+      setCrewPayOpen(false)
       await refresh()
     } catch (reason) {
       setError(errorMessage(reason))
@@ -423,21 +581,85 @@ export function WagePage() {
       </form>
     </Modal>}
 
-    <div className="space-y-3">
-      {workerSummaries.map((summary) => <article key={summary.worker.id} className="card p-5">
+    {crewPayOpen && selectedCrewLeader && selectedCrewProject && <Modal title={`Bayar kumpulan · ${selectedCrewLeader.name}`} close={() => setCrewPayOpen(false)}>
+      <form onSubmit={payCrew} className="space-y-4">
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+          <p className="text-xs font-black uppercase tracking-wider text-violet-700">Kepala Tukang</p>
+          <p className="mt-1 text-xl font-black text-slate-950">{selectedCrewLeader.name}</p>
+          <p className="mt-1 text-xs text-slate-500">Semua tunai di bawah akan direkod sebagai diterima melalui kepala tukang ini.</p>
+        </div>
+        <label><span className="field-label">Projek</span><input className="field-control bg-slate-50" readOnly value={projectOptionLabel(selectedCrewProject)} /></label>
+        <div className="grid grid-cols-2 gap-3">
+          <label><span className="field-label">Dari</span><input type="date" className="field-control" value={crewPeriodStart} onChange={(event) => setCrewPeriodStart(event.target.value)} /></label>
+          <label><span className="field-label">Hingga</span><input type="date" className="field-control" value={crewPeriodEnd} onChange={(event) => setCrewPeriodEnd(event.target.value)} /></label>
+        </div>
+
+        <div className="space-y-2">
+          {crewPaymentRows.map((row) => <div key={row.worker.id} className="rounded-2xl border border-slate-200 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div><p className="font-black text-slate-950">{row.worker.name}</p><p className="text-xs text-slate-500">{formatDays(row.workDays)}</p></div>
+              <strong className="text-sky-700">{formatMoney(row.cash)}</strong>
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-slate-500"><span>Hutang {formatMoney(row.outstanding)}</span><span>Pinjaman {formatMoney(row.advances)}</span></div>
+          </div>)}
+        </div>
+
+        <div className="rounded-2xl bg-slate-950 p-4 text-white">
+          <div className="flex justify-between text-sm text-slate-300"><span>Jumlah hutang upah</span><strong>{formatMoney(crewTotals.outstanding)}</strong></div>
+          <div className="mt-2 flex justify-between text-sm text-amber-300"><span>Tolak pinjaman</span><strong>{formatMoney(crewTotals.advances)}</strong></div>
+          <div className="mt-3 flex justify-between border-t border-slate-700 pt-3"><span className="font-black">Tunai beri kepada {selectedCrewLeader.name}</span><strong className="text-xl text-sky-300">{formatMoney(crewTotals.cash)}</strong></div>
+        </div>
+
+        <label><span className="field-label">Tarikh bayar</span><input name="payment_date" type="date" className="field-control" required defaultValue={today} /></label>
+        <label><span className="field-label">Kaedah</span><select name="payment_method" className="field-control" defaultValue={'cash' satisfies PaymentMethod}>{paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label>
+        <label><span className="field-label">Catatan</span><textarea name="notes" className="field-control" placeholder="Contoh: diserahkan kepada kepala tukang di tapak" /></label>
+        {crewPaymentError && <p className="alert-error flex gap-2"><CircleAlert className="h-5 w-5 shrink-0" />{crewPaymentError}</p>}
+        <button className="btn-primary w-full" disabled={saving || Boolean(crewPaymentError)}>{saving ? 'Merekod...' : `Sahkan bayaran kumpulan ${formatMoney(crewTotals.cash)}`}</button>
+      </form>
+    </Modal>}
+
+    {crewProjectSummaries.length > 0 && <section className="mb-7">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-100 text-violet-700"><Users className="h-4 w-4" /></span>
+        <div><h2 className="font-black">Bayaran melalui Kepala Tukang</h2><p className="text-xs text-slate-500">Bayar beberapa pekerja sekali, tetapi rekod gaji setiap pekerja kekal berasingan.</p></div>
+      </div>
+      <div className="space-y-3">{crewProjectSummaries.map((summary) => <article key={`${summary.leader.id}:${summary.project.id}`} className="card border-violet-100 p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-xl font-black">{summary.worker.name}</h2>
+          <div className="min-w-0 xl:w-56">
+            <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">KEPALA TUKANG</span>
+            <h3 className="mt-2 text-xl font-black">{summary.leader.name}</h3>
+            <p className="mt-1 truncate text-xs font-bold text-slate-500">{projectOptionLabel(summary.project)}</p>
           </div>
           <div className="grid flex-1 gap-2 sm:grid-cols-4 xl:max-w-3xl">
-            <SimpleMetric label="Tempoh kerja" value={formatDays(summary.workDays)} />
+            <SimpleMetric label="Pekerja" value={`${summary.workerCount} orang`} />
             <SimpleMetric label="Hutang upah" value={formatMoney(summary.outstanding)} />
             <SimpleMetric label="Pinjaman" value={formatMoney(summary.advances)} tone="amber" />
-            <SimpleMetric label="Bersih" value={formatMoney(summary.netPay)} tone="sky" strong />
+            <SimpleMetric label="Tunai ke ketua" value={formatMoney(summary.netPay)} tone="sky" strong />
           </div>
-          <button onClick={() => openWorkerPayment(summary)} className="btn-primary shrink-0"><Banknote className="h-4 w-4" />Bayar</button>
+          <button onClick={() => openCrewPayment(summary)} className="btn-primary shrink-0"><Users className="h-4 w-4" />Bayar kumpulan</button>
         </div>
-      </article>)}
+      </article>)}</div>
+    </section>}
+
+    <div className="space-y-3">
+      {workerSummaries.map((summary) => {
+        const leader = summary.worker.crew_leader_id ? workerMap.get(summary.worker.crew_leader_id) : undefined
+        return <article key={summary.worker.id} className="card p-5">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl font-black">{summary.worker.name}</h2>
+              {leader && <p className="mt-1 text-xs font-bold text-violet-700">Gaji biasanya melalui {leader.name}</p>}
+            </div>
+            <div className="grid flex-1 gap-2 sm:grid-cols-4 xl:max-w-3xl">
+              <SimpleMetric label="Tempoh kerja" value={formatDays(summary.workDays)} />
+              <SimpleMetric label="Hutang upah" value={formatMoney(summary.outstanding)} />
+              <SimpleMetric label="Pinjaman" value={formatMoney(summary.advances)} tone="amber" />
+              <SimpleMetric label="Bersih" value={formatMoney(summary.netPay)} tone="sky" strong />
+            </div>
+            <button onClick={() => openWorkerPayment(summary)} className="btn-primary shrink-0"><Banknote className="h-4 w-4" />{leader ? 'Bayar terus' : 'Bayar'}</button>
+          </div>
+        </article>
+      })}
       {!workerSummaries.length && <EmptyBlock title="Tiada hutang upah" description="Pekerja kontrak masih boleh dibayar menggunakan butang Bayar upah." />}
     </div>
   </>
