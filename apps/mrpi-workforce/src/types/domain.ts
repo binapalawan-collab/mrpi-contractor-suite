@@ -1,4 +1,4 @@
-// Workforce wage records support individual and crew-scoped advances.
+// Workforce wage records support individual/crew advances and crew payments across outstanding projects.
 export type Company={id:number;owner_user_id:string;legal_name:string;trading_name:string|null}
 export type Project={id:number;company_id:number;owner_user_id:string;project_no:string;project_name:string;client_name:string;status:string;source_project_no?:string;workforce_name?:string|null}
 export type PayType='daily'|'contract'
