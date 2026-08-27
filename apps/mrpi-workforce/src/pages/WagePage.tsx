@@ -47,6 +47,7 @@ type CrewProjectSummary = {
   workDays: number
   outstanding: number
   advances: number
+  groupAdvances: number
   netPay: number
   start: string
   end: string
@@ -181,7 +182,7 @@ export function WagePage() {
     const rows = workerGroups.flatMap((group) => group.rows)
     const outstanding = roundMoney(workerGroups.reduce((sum, group) => sum + group.outstanding, 0))
     const openAdvances = roundMoney(advances
-      .filter((advance) => advance.worker_id === worker.id)
+      .filter((advance) => advance.worker_id === worker.id && (advance.advance_scope ?? 'worker') === 'worker')
       .reduce((sum, advance) => sum + advance.amount, 0))
     return [{
       worker,
@@ -214,9 +215,12 @@ export function WagePage() {
           workDays += group.rows.reduce((sum, row) => sum + workUnits(row), 0)
           dates.push(group.start, group.end)
           owingWorkerIds.add(group.worker.id)
-          const workerAdvanceRows = advances.filter((advance) => advance.worker_id === group.worker.id && advance.project_id === project.id)
+          const workerAdvanceRows = advances.filter((advance) => advance.worker_id === group.worker.id && advance.project_id === project.id && (advance.advance_scope ?? 'worker') === 'worker')
           advanceTotal = roundMoney(advanceTotal + deductibleAdvances(workerAdvanceRows, group.outstanding))
         }
+        const groupAdvanceRows = advances.filter((advance) => advance.worker_id === leader.id && advance.project_id === project.id && advance.advance_scope === 'crew')
+        const groupAdvances = deductibleAdvances(groupAdvanceRows, Math.max(0, roundMoney(outstanding - advanceTotal)))
+        advanceTotal = roundMoney(advanceTotal + groupAdvances)
         dates.sort()
         summaries.push({
           leader,
@@ -225,6 +229,7 @@ export function WagePage() {
           workDays,
           outstanding,
           advances: advanceTotal,
+          groupAdvances,
           netPay: roundMoney(Math.max(0, outstanding - advanceTotal)),
           start: dates[0]!,
           end: dates.at(-1)!,
@@ -236,7 +241,7 @@ export function WagePage() {
 
   const selectedWorker = workers.find((worker) => worker.id === Number(workerId))
   const eligibleAdvances = advances.filter((advance) => (
-    advance.worker_id === Number(workerId) && advance.project_id === Number(projectId)
+    advance.worker_id === Number(workerId) && advance.project_id === Number(projectId) && (advance.advance_scope ?? 'worker') === 'worker'
   ))
   const deduction = roundMoney(eligibleAdvances
     .filter((advance) => selectedAdvances.includes(advance.id))
@@ -285,7 +290,7 @@ export function WagePage() {
       ))
       const outstanding = roundMoney(rows.reduce((sum, row) => sum + outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount), 0))
       if (outstanding <= 0) return []
-      const workerAdvanceRows = advances.filter((advance) => advance.worker_id === worker.id && advance.project_id === selectedCrewProject.id)
+      const workerAdvanceRows = advances.filter((advance) => advance.worker_id === worker.id && advance.project_id === selectedCrewProject.id && (advance.advance_scope ?? 'worker') === 'worker')
       const advanceTotal = deductibleAdvances(workerAdvanceRows, outstanding)
       return [{
         worker,
@@ -297,11 +302,29 @@ export function WagePage() {
     })
   }, [advances, attendance, crewPeriodEnd, crewPeriodStart, selectedCrewLeader, selectedCrewProject, workers])
 
-  const crewTotals = useMemo(() => crewPaymentRows.reduce((totals, row) => ({
+  const crewBaseTotals = useMemo(() => crewPaymentRows.reduce((totals, row) => ({
     outstanding: roundMoney(totals.outstanding + row.outstanding),
     advances: roundMoney(totals.advances + row.advances),
-    cash: roundMoney(totals.cash + row.cash),
-  }), { outstanding: 0, advances: 0, cash: 0 }), [crewPaymentRows])
+  }), { outstanding: 0, advances: 0 }), [crewPaymentRows])
+  const crewGroupAdvances = useMemo(() => {
+    if (!selectedCrewLeader || !selectedCrewProject) return 0
+    const groupAdvanceRows = advances.filter((advance) => (
+      advance.worker_id === selectedCrewLeader.id
+      && advance.project_id === selectedCrewProject.id
+      && advance.advance_scope === 'crew'
+    ))
+    return deductibleAdvances(groupAdvanceRows, Math.max(0, roundMoney(crewBaseTotals.outstanding - crewBaseTotals.advances)))
+  }, [advances, crewBaseTotals.advances, crewBaseTotals.outstanding, selectedCrewLeader, selectedCrewProject])
+  const crewTotals = useMemo(() => {
+    const advancesTotal = roundMoney(crewBaseTotals.advances + crewGroupAdvances)
+    return {
+      outstanding: crewBaseTotals.outstanding,
+      personalAdvances: crewBaseTotals.advances,
+      groupAdvances: crewGroupAdvances,
+      advances: advancesTotal,
+      cash: roundMoney(Math.max(0, crewBaseTotals.outstanding - advancesTotal)),
+    }
+  }, [crewBaseTotals, crewGroupAdvances])
 
   useEffect(() => {
     if (!payOpen || selectedWorker?.pay_type !== 'daily') return
@@ -453,13 +476,14 @@ export function WagePage() {
     setSaving(true)
     setError('')
     try {
-      const { error: advanceError } = await supabase.rpc('record_worker_advance', {
+      const { error: advanceError } = await supabase.rpc('record_worker_advance_scoped', {
         p_worker_id: Number(form.get('worker_id')),
         p_project_id: Number(form.get('project_id')),
         p_advance_date: String(form.get('advance_date')),
         p_amount: Number(form.get('amount')),
         p_payment_method: String(form.get('payment_method')),
         p_notes: String(form.get('notes') || ''),
+        p_advance_scope: String(form.get('advance_scope') || 'worker'),
       })
       if (advanceError) throw advanceError
       setAdvanceOpen(false)
@@ -489,6 +513,7 @@ export function WagePage() {
     {advanceOpen && <Modal title="Rekod pinjaman" close={() => setAdvanceOpen(false)}>
       <form onSubmit={recordAdvance} className="space-y-4">
         <WorkerProjectFields workers={workers} projects={projects} />
+        <label><span className="field-label">Jenis pinjaman</span><select name="advance_scope" className="field-control" defaultValue="worker"><option value="worker">Pinjaman individu</option><option value="crew">Pinjaman kumpulan · Kepala Tukang</option></select><span className="mt-1 block text-[11px] text-slate-500">Pinjaman kumpulan ditolak daripada jumlah bayaran semua pekerja bawah Kepala Tukang untuk projek ini.</span></label>
         <label><span className="field-label">Tarikh</span><input name="advance_date" type="date" className="field-control" required defaultValue={today} /></label>
         <label><span className="field-label">Amaun</span><input name="amount" type="number" min="0.01" step="0.01" className="field-control" required /></label>
         <label><span className="field-label">Kaedah</span><select name="payment_method" className="field-control" defaultValue="cash">{paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label>
@@ -606,7 +631,8 @@ export function WagePage() {
 
         <div className="rounded-2xl bg-slate-950 p-4 text-white">
           <div className="flex justify-between text-sm text-slate-300"><span>Jumlah hutang upah</span><strong>{formatMoney(crewTotals.outstanding)}</strong></div>
-          <div className="mt-2 flex justify-between text-sm text-amber-300"><span>Tolak pinjaman</span><strong>{formatMoney(crewTotals.advances)}</strong></div>
+          <div className="mt-2 flex justify-between text-sm text-amber-200"><span>Tolak pinjaman pekerja</span><strong>{formatMoney(crewTotals.personalAdvances)}</strong></div>
+          <div className="mt-2 flex justify-between text-sm text-amber-300"><span>Tolak pinjaman kumpulan</span><strong>{formatMoney(crewTotals.groupAdvances)}</strong></div>
           <div className="mt-3 flex justify-between border-t border-slate-700 pt-3"><span className="font-black">Tunai beri kepada {selectedCrewLeader.name}</span><strong className="text-xl text-sky-300">{formatMoney(crewTotals.cash)}</strong></div>
         </div>
 
@@ -633,7 +659,7 @@ export function WagePage() {
           <div className="grid flex-1 gap-2 sm:grid-cols-4 xl:max-w-3xl">
             <SimpleMetric label="Pekerja" value={`${summary.workerCount} orang`} />
             <SimpleMetric label="Hutang upah" value={formatMoney(summary.outstanding)} />
-            <SimpleMetric label="Pinjaman" value={formatMoney(summary.advances)} tone="amber" />
+            <SimpleMetric label={summary.groupAdvances > 0 ? "Pinjaman · termasuk group" : "Pinjaman"} value={formatMoney(summary.advances)} tone="amber" />
             <SimpleMetric label="Tunai ke ketua" value={formatMoney(summary.netPay)} tone="sky" strong />
           </div>
           <button onClick={() => openCrewPayment(summary)} className="btn-primary shrink-0"><Users className="h-4 w-4" />Bayar kumpulan</button>
