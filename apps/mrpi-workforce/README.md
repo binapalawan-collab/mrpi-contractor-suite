@@ -13,10 +13,12 @@ unassigned workers separate from workers who are explicitly absent.
 - A worker stores only a name, pay type, optional daily rate, notes and active status.
 - The company owner uses the same Supabase Auth account as MRPI Contractor Suite.
 
-Wages can be paid in full or partially for a selected date range. Each payment is allocated to
-the oldest unpaid attendance first, the remaining balance stays payable, and only cash actually
-paid posts to MRPI Project Expenses. Advances continue to post when issued and can be selected
-as part of a later wage settlement.
+Daily wages can be paid in full or partially for a selected date range without selecting a
+project. The payment screen combines all outstanding projects into one total and shows a
+per-project breakdown for reference. The admin enters one cash amount; the system allocates it
+to the oldest outstanding project balances first while keeping each wage payment, attendance
+allocation and Project Expenses entry attached to the correct project. Individual advances
+remain project-scoped and can be selected as part of the combined settlement.
 
 Unpaid attendance can be edited or deleted from history. Attendance with any full or partial
 wage allocation is locked. Reverse the related wage transaction first; this removes only that
