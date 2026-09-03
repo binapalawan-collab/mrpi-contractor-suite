@@ -40,6 +40,15 @@ type WorkerWageSummary = {
   netPay: number
 }
 
+type WorkerProjectPaymentSummary = {
+  project: Project
+  rows: Attendance[]
+  outstanding: number
+  workDays: number
+  start: string
+  end: string
+}
+
 type CrewProjectSummary = {
   leader: Worker
   project: Project
@@ -296,24 +305,66 @@ export function WagePage() {
   }, [crewProjectSummaries, groups, workerMap, workers])
 
   const selectedWorker = workers.find((worker) => worker.id === Number(workerId))
-  const eligibleAdvances = advances.filter((advance) => (
-    advance.worker_id === Number(workerId) && advance.project_id === Number(projectId) && (advance.advance_scope ?? 'worker') === 'worker'
-  ))
-  const deduction = roundMoney(eligibleAdvances
-    .filter((advance) => selectedAdvances.includes(advance.id))
-    .reduce((sum, advance) => sum + advance.amount, 0))
-  const matchingRows = attendance.filter((row) => (
-    row.worker_id === Number(workerId)
-    && row.project_id === Number(projectId)
-    && row.status !== 'absent'
-    && row.attendance_date >= periodStart
-    && row.attendance_date <= periodEnd
-    && outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount) > 0
-  ))
+
+  const workerProjectPaymentSummaries = useMemo(() => {
+    if (!selectedWorker || selectedWorker.pay_type !== 'daily') return []
+    return projects.flatMap((project) => {
+      const rows = attendance.filter((row) => (
+        row.worker_id === selectedWorker.id
+        && row.project_id === project.id
+        && row.status !== 'absent'
+        && row.attendance_date >= periodStart
+        && row.attendance_date <= periodEnd
+        && outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount) > 0
+      ))
+      if (!rows.length) return []
+      const dates = rows.map((row) => row.attendance_date).sort()
+      return [{
+        project,
+        rows,
+        outstanding: roundMoney(rows.reduce(
+          (sum, row) => sum + outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount),
+          0,
+        )),
+        workDays: rows.reduce((sum, row) => sum + workUnits(row), 0),
+        start: dates[0]!,
+        end: dates.at(-1)!,
+      } satisfies WorkerProjectPaymentSummary]
+    }).sort((a, b) => a.start.localeCompare(b.start) || a.project.id - b.project.id)
+  }, [attendance, periodEnd, periodStart, projects, selectedWorker])
+
+  const workerPaymentProjectIds = useMemo(
+    () => workerProjectPaymentSummaries.map((summary) => summary.project.id),
+    [workerProjectPaymentSummaries],
+  )
+
+  const matchingRows = selectedWorker?.pay_type === 'daily'
+    ? workerProjectPaymentSummaries.flatMap((summary) => summary.rows)
+    : attendance.filter((row) => (
+      row.worker_id === Number(workerId)
+      && row.project_id === Number(projectId)
+      && row.status !== 'absent'
+      && row.attendance_date >= periodStart
+      && row.attendance_date <= periodEnd
+      && outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount) > 0
+    ))
+
   const outstandingTotal = roundMoney(matchingRows.reduce(
     (sum, row) => sum + outstandingAttendanceWage(row.wage_amount, row.paid_wage_amount),
     0,
   ))
+
+  const eligibleAdvances = advances.filter((advance) => (
+    advance.worker_id === Number(workerId)
+    && (advance.advance_scope ?? 'worker') === 'worker'
+    && (selectedWorker?.pay_type === 'daily'
+      ? workerPaymentProjectIds.includes(advance.project_id)
+      : advance.project_id === Number(projectId))
+  ))
+
+  const deduction = roundMoney(eligibleAdvances
+    .filter((advance) => selectedAdvances.includes(advance.id))
+    .reduce((sum, advance) => sum + advance.amount, 0))
   const contractGross = roundMoney(Number(grossInput || 0))
   const cashAmount = selectedWorker?.pay_type === 'daily'
     ? roundMoney(Number(cashInput || 0))
@@ -325,6 +376,39 @@ export function WagePage() {
     ? roundMoney(Math.max(0, outstandingTotal - settlementTotal))
     : 0
   const availableForPayment = selectedWorker?.pay_type === 'daily' ? outstandingTotal : contractGross
+
+  const selectedAdvanceTotalsByProject = useMemo(() => {
+    const totals = new Map<number, number>()
+    for (const advance of eligibleAdvances) {
+      if (!selectedAdvances.includes(advance.id)) continue
+      totals.set(advance.project_id, roundMoney((totals.get(advance.project_id) ?? 0) + advance.amount))
+    }
+    return totals
+  }, [eligibleAdvances, selectedAdvances])
+
+  const advanceProjectError = selectedWorker?.pay_type === 'daily'
+    ? workerProjectPaymentSummaries.some((summary) => (
+      (selectedAdvanceTotalsByProject.get(summary.project.id) ?? 0) > summary.outstanding
+    ))
+    : false
+
+  const workerProjectPaymentBreakdown = useMemo(() => {
+    let remainingCash = selectedWorker?.pay_type === 'daily' ? cashAmount : 0
+    return workerProjectPaymentSummaries.map((summary) => {
+      const advanceDeduction = selectedAdvanceTotalsByProject.get(summary.project.id) ?? 0
+      const cashCapacity = Math.max(0, roundMoney(summary.outstanding - advanceDeduction))
+      const cash = roundMoney(Math.min(remainingCash, cashCapacity))
+      remainingCash = roundMoney(Math.max(0, remainingCash - cash))
+      const settled = roundMoney(cash + advanceDeduction)
+      return {
+        ...summary,
+        advanceDeduction,
+        cash,
+        settled,
+        balance: roundMoney(Math.max(0, summary.outstanding - settled)),
+      }
+    })
+  }, [cashAmount, selectedAdvanceTotalsByProject, selectedWorker?.pay_type, workerProjectPaymentSummaries])
 
   const selectedCrewLeader = workers.find((worker) => worker.id === Number(crewHeadId) && worker.is_crew_leader)
   const crewPaymentRows = useMemo(() => {
@@ -407,11 +491,16 @@ export function WagePage() {
   }, [deduction, outstandingTotal, payOpen, selectedWorker?.pay_type])
 
   let paymentError = ''
-  if (!selectedWorker || !projectId) paymentError = 'Pilih pekerja dan projek.'
-  else if (selectedWorker.pay_type === 'daily' && outstandingTotal <= 0) {
+  if (!selectedWorker) paymentError = 'Pilih pekerja.'
+  else if (periodEnd < periodStart) paymentError = 'Tempoh bayaran tidak sah.'
+  else if (selectedWorker.pay_type === 'daily' && !workerPaymentProjectIds.length) {
     paymentError = 'Tiada baki upah attendance dalam tempoh ini atau kadar hari masih RM0.'
+  } else if (selectedWorker.pay_type === 'contract' && !projectId) {
+    paymentError = 'Pilih projek untuk bayaran pekerja kontrak.'
   } else if (selectedWorker.pay_type === 'contract' && contractGross <= 0) {
     paymentError = 'Masukkan upah kontrak untuk bayaran ini.'
+  } else if (advanceProjectError) {
+    paymentError = 'Pinjaman dipilih melebihi baki upah bagi salah satu projek.'
   } else if (deduction > availableForPayment) {
     paymentError = 'Pinjaman dipilih melebihi jumlah upah untuk bayaran ini.'
   } else if (cashAmount < 0 || settlementTotal <= 0) {
@@ -432,17 +521,14 @@ export function WagePage() {
     setSelectedAdvances([])
   }
 
-  function setGroupForPayment(group: WageGroup) {
-    setWorkerId(String(group.worker.id))
-    setProjectId(String(group.project.id))
-    setPeriodStart(group.start)
-    setPeriodEnd(group.end)
-  }
-
   function openWorkerPayment(summary: WorkerWageSummary) {
-    const nextGroup = summary.groups[0]
-    if (!nextGroup) return
-    setGroupForPayment(nextGroup)
+    const dates = summary.groups.flatMap((group) => [group.start, group.end]).sort()
+    setWorkerId(String(summary.worker.id))
+    if (summary.groups[0]) setProjectId(String(summary.groups[0].project.id))
+    if (dates.length) {
+      setPeriodStart(dates[0]!)
+      setPeriodEnd(dates.at(-1)!)
+    }
     setGrossInput('')
     setCashInput('')
     resetSelectedAdvances()
@@ -451,8 +537,16 @@ export function WagePage() {
 
   function openPayment() {
     const worker = workers.find((item) => String(item.id) === workerId) ?? workers[0]
-    const group = worker ? groups.find((item) => item.worker.id === worker.id) : undefined
-    if (group) setGroupForPayment(group)
+    if (worker) {
+      const workerGroups = groups.filter((item) => item.worker.id === worker.id)
+      const dates = workerGroups.flatMap((group) => [group.start, group.end]).sort()
+      setWorkerId(String(worker.id))
+      if (workerGroups[0]) setProjectId(String(workerGroups[0].project.id))
+      if (dates.length) {
+        setPeriodStart(dates[0]!)
+        setPeriodEnd(dates.at(-1)!)
+      }
+    }
     setGrossInput('')
     setCashInput('')
     resetSelectedAdvances()
@@ -468,11 +562,12 @@ export function WagePage() {
 
   function selectWorker(value: string) {
     setWorkerId(value)
-    const group = groups.find((item) => item.worker.id === Number(value))
-    if (group) {
-      setProjectId(String(group.project.id))
-      setPeriodStart(group.start)
-      setPeriodEnd(group.end)
+    const workerGroups = groups.filter((item) => item.worker.id === Number(value))
+    const dates = workerGroups.flatMap((group) => [group.start, group.end]).sort()
+    if (workerGroups[0]) setProjectId(String(workerGroups[0].project.id))
+    if (dates.length) {
+      setPeriodStart(dates[0]!)
+      setPeriodEnd(dates.at(-1)!)
     }
     resetSelectedAdvances()
   }
@@ -494,19 +589,31 @@ export function WagePage() {
     setError('')
     const form = new FormData(event.currentTarget)
     try {
-      const { error: paymentRequestError } = await supabase.rpc('record_worker_wage_payment_partial', {
-        p_worker_id: Number(workerId),
-        p_project_id: Number(projectId),
-        p_period_start: periodStart,
-        p_period_end: periodEnd,
-        p_payment_date: String(form.get('payment_date')),
-        p_gross_amount: selectedWorker.pay_type === 'contract' ? contractGross : null,
-        p_cash_amount: selectedWorker.pay_type === 'daily' ? cashAmount : null,
-        p_advance_ids: selectedAdvances,
-        p_payment_method: String(form.get('payment_method')),
-        p_notes: String(form.get('notes') || ''),
-      })
-      if (paymentRequestError) throw paymentRequestError
+      const paymentResult = selectedWorker.pay_type === 'daily'
+        ? await supabase.rpc('record_worker_wage_payment_all_projects_partial', {
+          p_worker_id: Number(workerId),
+          p_project_ids: workerPaymentProjectIds,
+          p_period_start: periodStart,
+          p_period_end: periodEnd,
+          p_payment_date: String(form.get('payment_date')),
+          p_cash_amount: cashAmount,
+          p_advance_ids: selectedAdvances,
+          p_payment_method: String(form.get('payment_method')),
+          p_notes: String(form.get('notes') || ''),
+        })
+        : await supabase.rpc('record_worker_wage_payment_partial', {
+          p_worker_id: Number(workerId),
+          p_project_id: Number(projectId),
+          p_period_start: periodStart,
+          p_period_end: periodEnd,
+          p_payment_date: String(form.get('payment_date')),
+          p_gross_amount: contractGross,
+          p_cash_amount: null,
+          p_advance_ids: selectedAdvances,
+          p_payment_method: String(form.get('payment_method')),
+          p_notes: String(form.get('notes') || ''),
+        })
+      if (paymentResult.error) throw paymentResult.error
       setPayOpen(false)
       resetSelectedAdvances()
       await refresh()
@@ -604,23 +711,44 @@ export function WagePage() {
             {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {payTypeLabel(worker.pay_type)}</option>)}
           </select>
         </label>
-        <label>
+        {selectedWorker?.pay_type === 'contract' && <label>
           <span className="field-label">Projek</span>
           <select className="field-control" value={projectId} onChange={(event) => selectProject(event.target.value)}>
             {projects.map((project) => <option key={project.id} value={project.id}>{projectOptionLabel(project)}</option>)}
           </select>
-        </label>
+        </label>}
         <div className="grid grid-cols-2 gap-3">
           <label><span className="field-label">Dari</span><input type="date" className="field-control" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} /></label>
           <label><span className="field-label">Hingga</span><input type="date" className="field-control" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></label>
         </div>
 
         {selectedWorker?.pay_type === 'daily'
-          ? <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wider text-sky-700">Hutang upah dalam tempoh</p>
-            <p className="mt-1 text-2xl font-black text-slate-950">{formatMoney(outstandingTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500">{matchingRows.reduce((sum, row) => sum + workUnits(row), 0)} hari kerja berbaki.</p>
-          </div>
+          ? <>
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+              <p className="text-xs font-black uppercase tracking-wider text-sky-700">Hutang upah semua projek dalam tempoh</p>
+              <p className="mt-1 text-2xl font-black text-slate-950">{formatMoney(outstandingTotal)}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatDays(matchingRows.reduce((sum, row) => sum + workUnits(row), 0))} berbaki · {workerProjectPaymentSummaries.length} projek.</p>
+            </div>
+
+            {workerProjectPaymentBreakdown.length > 0 && <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-500">Pecahan mengikut projek</p>
+              <div className="mt-2 divide-y divide-slate-100">{workerProjectPaymentBreakdown.map((summary) => <div key={summary.project.id} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-900">{projectOptionLabel(summary.project)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{formatDays(summary.workDays)} · Hutang {formatMoney(summary.outstanding)}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <strong className="text-sm text-sky-700">{formatMoney(summary.cash)}</strong>
+                    <p className="text-[10px] text-slate-400">Tunai dari amaun</p>
+                  </div>
+                </div>
+                {summary.advanceDeduction > 0 && <p className="mt-1 text-xs text-amber-700">+ Pinjaman ditolak {formatMoney(summary.advanceDeduction)}</p>}
+                {summary.balance > 0 && <p className="mt-1 text-xs font-bold text-rose-600">Baki selepas bayaran {formatMoney(summary.balance)}</p>}
+              </div>)}</div>
+              <p className="mt-2 text-[11px] text-slate-500">Bayar satu amaun sahaja. Sistem agih automatik bermula daripada projek yang mempunyai baki paling lama.</p>
+            </div>}
+          </>
           : <label>
             <span className="field-label">Upah kontrak untuk bayaran ini</span>
             <input type="number" min="0.01" step="0.01" required className="field-control" value={grossInput} onChange={(event) => setGrossInput(event.target.value)} />
@@ -630,19 +758,24 @@ export function WagePage() {
           <legend className="field-label">Pinjaman untuk ditolak</legend>
           <div className="space-y-2">{eligibleAdvances.map((advance) => {
             const selected = selectedAdvances.includes(advance.id)
+            const projectOutstanding = workerProjectPaymentSummaries.find((summary) => summary.project.id === advance.project_id)?.outstanding ?? availableForPayment
+            const selectedForProject = selectedAdvanceTotalsByProject.get(advance.project_id) ?? 0
+            const exceedsProject = selectedWorker?.pay_type === 'daily' && !selected && roundMoney(selectedForProject + advance.amount) > projectOutstanding
             const exceedsPayment = !selected && roundMoney(deduction + advance.amount) > availableForPayment
-            return <label key={advance.id} className={`flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm ${exceedsPayment ? 'opacity-45' : ''}`}>
+            const disabled = exceedsPayment || exceedsProject
+            const advanceProject = projects.find((project) => project.id === advance.project_id)
+            return <label key={advance.id} className={`flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm ${disabled ? 'opacity-45' : ''}`}>
               <span className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   checked={selected}
-                  disabled={exceedsPayment}
+                  disabled={disabled}
                   onChange={(event) => setSelectedAdvances((ids) => event.target.checked
                     ? [...ids, advance.id]
                     : ids.filter((id) => id !== advance.id))}
                   className="h-5 w-5 accent-sky-600"
                 />
-                {formatDate(advance.advance_date)}
+                <span>{formatDate(advance.advance_date)}{selectedWorker?.pay_type === 'daily' && advanceProject && <span className="mt-0.5 block text-[10px] text-slate-400">{projectOptionLabel(advanceProject)}</span>}</span>
               </span>
               <strong>{formatMoney(advance.amount)}</strong>
             </label>
