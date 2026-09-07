@@ -122,6 +122,7 @@ textarea.field-control {
     width: 210mm;
     min-height: 297mm;
     max-width: none;
+    overflow: visible !important;
     box-shadow: none !important;
   }
 
@@ -149,5 +150,81 @@ textarea.field-control {
   .payment-schedule-total-row {
     break-before: avoid-page;
     page-break-before: avoid;
+  }
+
+  /* Agreement PDF: keep A4 output compact and prevent orphaned signature/footer pages. */
+  .agreement-print-document > header {
+    padding: 5mm 7mm !important;
+    border-bottom-width: 3px !important;
+  }
+
+  .agreement-print-body {
+    padding: 5mm 7mm 5mm !important;
+  }
+
+  .agreement-print-body .mt-7 {
+    margin-top: 4mm !important;
+  }
+
+  .agreement-print-body .mt-4 {
+    margin-top: 2.5mm !important;
+  }
+
+  .agreement-print-body .mt-3 {
+    margin-top: 2mm !important;
+  }
+
+  .agreement-print-body .py-6 {
+    padding-top: 3.5mm !important;
+    padding-bottom: 3.5mm !important;
+  }
+
+  .agreement-print-body .pb-6 {
+    padding-bottom: 3.5mm !important;
+  }
+
+  .agreement-print-body .leading-5 {
+    line-height: 1.15rem !important;
+  }
+
+  .agreement-print-body h2,
+  .agreement-print-body h3 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  .agreement-scope-card,
+  .agreement-specific-term {
+    padding: 2.5mm !important;
+  }
+
+  .agreement-specific-term {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .agreement-payment-table th,
+  .agreement-payment-table td {
+    padding-top: 2mm !important;
+    padding-bottom: 2mm !important;
+  }
+
+  .agreement-signature-block {
+    margin-top: 3mm !important;
+    padding-top: 4mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .agreement-signature-block .h-24 {
+    height: 18mm !important;
+    margin-top: 2mm !important;
+  }
+
+  .agreement-print-footer {
+    margin-top: 4mm !important;
+    padding-top: 2mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
   }
 }
