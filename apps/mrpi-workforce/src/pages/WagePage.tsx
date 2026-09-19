@@ -377,25 +377,12 @@ export function WagePage() {
     : 0
   const availableForPayment = selectedWorker?.pay_type === 'daily' ? outstandingTotal : contractGross
 
-  const selectedAdvanceTotalsByProject = useMemo(() => {
-    const totals = new Map<number, number>()
-    for (const advance of eligibleAdvances) {
-      if (!selectedAdvances.includes(advance.id)) continue
-      totals.set(advance.project_id, roundMoney((totals.get(advance.project_id) ?? 0) + advance.amount))
-    }
-    return totals
-  }, [eligibleAdvances, selectedAdvances])
-
-  const advanceProjectError = selectedWorker?.pay_type === 'daily'
-    ? workerProjectPaymentSummaries.some((summary) => (
-      (selectedAdvanceTotalsByProject.get(summary.project.id) ?? 0) > summary.outstanding
-    ))
-    : false
-
   const workerProjectPaymentBreakdown = useMemo(() => {
+    let remainingAdvance = selectedWorker?.pay_type === 'daily' ? deduction : 0
     let remainingCash = selectedWorker?.pay_type === 'daily' ? cashAmount : 0
     return workerProjectPaymentSummaries.map((summary) => {
-      const advanceDeduction = selectedAdvanceTotalsByProject.get(summary.project.id) ?? 0
+      const advanceDeduction = roundMoney(Math.min(remainingAdvance, summary.outstanding))
+      remainingAdvance = roundMoney(Math.max(0, remainingAdvance - advanceDeduction))
       const cashCapacity = Math.max(0, roundMoney(summary.outstanding - advanceDeduction))
       const cash = roundMoney(Math.min(remainingCash, cashCapacity))
       remainingCash = roundMoney(Math.max(0, remainingCash - cash))
@@ -408,7 +395,7 @@ export function WagePage() {
         balance: roundMoney(Math.max(0, summary.outstanding - settled)),
       }
     })
-  }, [cashAmount, selectedAdvanceTotalsByProject, selectedWorker?.pay_type, workerProjectPaymentSummaries])
+  }, [cashAmount, deduction, selectedWorker?.pay_type, workerProjectPaymentSummaries])
 
   const selectedCrewLeader = workers.find((worker) => worker.id === Number(crewHeadId) && worker.is_crew_leader)
   const crewPaymentRows = useMemo(() => {
@@ -499,8 +486,6 @@ export function WagePage() {
     paymentError = 'Pilih projek untuk bayaran pekerja kontrak.'
   } else if (selectedWorker.pay_type === 'contract' && contractGross <= 0) {
     paymentError = 'Masukkan upah kontrak untuk bayaran ini.'
-  } else if (advanceProjectError) {
-    paymentError = 'Pinjaman dipilih melebihi baki upah bagi salah satu projek.'
   } else if (deduction > availableForPayment) {
     paymentError = 'Pinjaman dipilih melebihi jumlah upah untuk bayaran ini.'
   } else if (cashAmount < 0 || settlementTotal <= 0) {
@@ -758,11 +743,8 @@ export function WagePage() {
           <legend className="field-label">Pinjaman untuk ditolak</legend>
           <div className="space-y-2">{eligibleAdvances.map((advance) => {
             const selected = selectedAdvances.includes(advance.id)
-            const projectOutstanding = workerProjectPaymentSummaries.find((summary) => summary.project.id === advance.project_id)?.outstanding ?? availableForPayment
-            const selectedForProject = selectedAdvanceTotalsByProject.get(advance.project_id) ?? 0
-            const exceedsProject = selectedWorker?.pay_type === 'daily' && !selected && roundMoney(selectedForProject + advance.amount) > projectOutstanding
             const exceedsPayment = !selected && roundMoney(deduction + advance.amount) > availableForPayment
-            const disabled = exceedsPayment || exceedsProject
+            const disabled = exceedsPayment
             const advanceProject = projects.find((project) => project.id === advance.project_id)
             return <label key={advance.id} className={`flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm ${disabled ? 'opacity-45' : ''}`}>
               <span className="flex items-center gap-3">
