@@ -7,7 +7,7 @@ import { Brand } from './Brand'
 const nav = [
   { to: '/', label: 'Ringkasan', icon: House, exact: true },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck },
-  { to: '/projects', label: 'Projek', icon: BriefcaseBusiness },
+  { to: '/projects', label: 'Alias Projek', icon: BriefcaseBusiness },
   { to: '/workers', label: 'Pekerja', icon: UsersRound },
   { to: '/wages', label: 'Upah', icon: WalletCards },
   { to: '/history', label: 'Sejarah', icon: History },
@@ -17,7 +17,7 @@ const mobile = [
   { to: '/', label: 'Utama', icon: House, exact: true },
   { to: '/workers', label: 'Pekerja', icon: UsersRound },
   { to: '/attendance', label: 'Check-in', icon: Plus, primary: true },
-  { to: '/projects', label: 'Projek', icon: BriefcaseBusiness },
+  { to: '/projects', label: 'Alias', icon: BriefcaseBusiness },
   { to: '/wages', label: 'Upah', icon: WalletCards },
   { to: '/history', label: 'Sejarah', icon: History },
 ]
