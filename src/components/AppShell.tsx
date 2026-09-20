@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   Settings2,
+  Tags,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
@@ -24,6 +25,7 @@ const desktopNav = [
   { to: '/sebutharga/baru', label: 'Sebutharga Baru', icon: FilePlus2 },
   { to: '/sebutharga', label: 'Senarai Sebutharga', icon: Files },
   { to: '/projek', label: 'Projek', icon: FolderKanban },
+  { to: '/projek-alias', label: 'Alias Projek', icon: Tags },
   { to: '/kewangan', label: 'Kewangan', icon: Landmark },
   { to: '/katalog', label: 'Katalog & Harga', icon: BookOpenText },
 ]
