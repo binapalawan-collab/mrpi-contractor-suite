@@ -1,10 +1,11 @@
-import { BookOpenText, Building2, Files, Landmark, LogOut } from 'lucide-react'
+import { BookOpenText, Building2, Files, Landmark, LogOut, Tags } from 'lucide-react'
 import { Link, useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
 
 const items = [
   { to: '/profil', label: 'Profil Syarikat', icon: Building2 },
   { to: '/sebutharga', label: 'Senarai Sebutharga', icon: Files },
+  { to: '/projek-alias', label: 'Alias Projek', icon: Tags },
   { to: '/kewangan', label: 'Kewangan', icon: Landmark },
   { to: '/katalog', label: 'Katalog & Harga', icon: BookOpenText },
 ]
