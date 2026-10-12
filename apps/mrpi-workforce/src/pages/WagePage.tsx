@@ -149,7 +149,8 @@ export function WagePage() {
     setError('')
     try {
       const [loadedWorkers, loadedProjects, loadedAttendance, loadedAdvances] = await Promise.all([
-        loadWorkers(true),
+        // Wage settlement includes inactive workers who still have an unpaid balance.
+        loadWorkers(),
         loadProjects(),
         loadAttendance(),
         loadAdvances(true),
@@ -678,7 +679,7 @@ export function WagePage() {
 
     {advanceOpen && <Modal title="Rekod pinjaman" close={() => setAdvanceOpen(false)}>
       <form onSubmit={recordAdvance} className="space-y-4">
-        <WorkerProjectFields workers={workers} projects={projects} />
+        <WorkerProjectFields workers={workers.filter((worker) => worker.is_active)} projects={projects} />
         <label><span className="field-label">Jenis pinjaman</span><select name="advance_scope" className="field-control" defaultValue="worker"><option value="worker">Pinjaman individu</option><option value="crew">Pinjaman kumpulan · Kepala Tukang</option></select><span className="mt-1 block text-[11px] text-slate-500">Pinjaman kumpulan ditolak daripada jumlah bayaran semua pekerja bawah Kepala Tukang untuk projek ini.</span></label>
         <label><span className="field-label">Tarikh</span><input name="advance_date" type="date" className="field-control" required defaultValue={today} /></label>
         <label><span className="field-label">Amaun</span><input name="amount" type="number" min="0.01" step="0.01" className="field-control" required /></label>
@@ -693,7 +694,7 @@ export function WagePage() {
         <label>
           <span className="field-label">Pekerja</span>
           <select className="field-control" value={workerId} onChange={(event) => selectWorker(event.target.value)}>
-            {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {payTypeLabel(worker.pay_type)}</option>)}
+            {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {payTypeLabel(worker.pay_type)}{!worker.is_active ? ' · Tidak aktif' : ''}</option>)}
           </select>
         </label>
         {selectedWorker?.pay_type === 'contract' && <label>
@@ -823,7 +824,7 @@ export function WagePage() {
             </div>
             <div className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
               {projectSummary.rows.map((row) => <div key={`${row.project.id}:${row.worker.id}`} className="flex items-center justify-between gap-3 py-2 text-xs">
-                <span><strong className="text-slate-800">{row.worker.name}</strong> · {formatDays(row.workDays)}</span>
+                <span><strong className="text-slate-800">{row.worker.name}</strong> · {formatDays(row.workDays)}{!row.worker.is_active && <span className="mt-0.5 block text-slate-500">Tidak aktif · masih berbaki</span>}</span>
                 <span className="text-slate-500">Hutang {formatMoney(row.outstanding)}{row.advances > 0 ? ` · Pinjaman ${formatMoney(row.advances)}` : ''}</span>
               </div>)}
             </div>
@@ -875,6 +876,7 @@ export function WagePage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
               <h2 className="text-xl font-black">{summary.worker.name}</h2>
+              {!summary.worker.is_active && <p className="mt-1 text-xs font-bold text-slate-500">Tidak aktif · masih berbaki</p>}
               {leader && <p className="mt-1 text-xs font-bold text-violet-700">Gaji biasanya melalui {leader.name}</p>}
             </div>
             <div className="grid flex-1 gap-2 sm:grid-cols-4 xl:max-w-3xl">
