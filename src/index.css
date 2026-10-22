@@ -145,16 +145,6 @@ textarea.field-control {
     page-break-inside: auto;
   }
 
-  .quotation-print-document .quotation-section-row {
-    break-after: avoid-page;
-    page-break-after: avoid;
-  }
-
-  .quotation-print-document .quotation-section-total-row {
-    break-before: avoid-page;
-    page-break-before: avoid;
-  }
-
   .quotation-print-document .quotation-item-row p {
     orphans: 2;
     widows: 2;
