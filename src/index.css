@@ -136,6 +136,20 @@ textarea.field-control {
     break-inside: avoid;
   }
 
+  /* Long quotation descriptions may continue across pages instead of
+     moving an entire priced item onto the next page. Other document
+     tables keep their existing non-splitting behaviour. */
+  .quotation-print-document .quotation-item-row,
+  .quotation-print-document .quotation-item-row > td {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .quotation-print-document .quotation-item-row p {
+    orphans: 2;
+    widows: 2;
+  }
+
   .payment-schedule-table th,
   .payment-schedule-stage-row td {
     padding-top: 0.5rem !important;
