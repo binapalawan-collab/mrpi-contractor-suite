@@ -2,6 +2,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { usePrintDocumentTitle } from '../lib/usePrintDocumentTitle'
 import { agingSummary, buildStatementTransactions, projectFinanceSummary, todayDate } from '../lib/finance'
 import { formatInvoiceDate, type Invoice, type InvoicePayment } from '../lib/invoice'
 import { projectAddress, type Project } from '../lib/project'
@@ -63,6 +64,8 @@ export function ProjectStatementPage({ projectId }: { projectId: string }) {
   }, [projectId, user])
 
   const transactions = useMemo(() => buildStatementTransactions(invoices, payments), [invoices, payments])
+
+  usePrintDocumentTitle(project ? `PENYATA-${project.project_no}` : undefined)
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Menyediakan penyata akaun...</div>
   if (error || !company || !project) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error || 'Penyata akaun tidak dapat dibuka.'}</div>
