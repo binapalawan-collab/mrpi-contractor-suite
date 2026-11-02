@@ -2,6 +2,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { usePrintDocumentTitle } from '../lib/usePrintDocumentTitle'
 import {
   agreementAcceptanceLabel,
   agreementStatusLabel,
@@ -108,6 +109,8 @@ export function AgreementPrintPage({ projectId }: { projectId: string }) {
     void load()
     return () => { mounted = false }
   }, [projectId, user])
+
+  usePrintDocumentTitle(agreement ? `${agreement.agreement_no}_REV-${agreement.revision_no}` : undefined)
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Menyediakan perjanjian...</div>
   if (error || !agreement || !document) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error || 'Perjanjian tidak dapat dibuka.'}</div>
