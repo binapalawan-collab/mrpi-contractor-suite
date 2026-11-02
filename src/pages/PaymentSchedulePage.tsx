@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowLeft, FileDown, GripVertical, Plus, Save, Trash2 } 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { usePrintDocumentTitle } from '../lib/usePrintDocumentTitle'
 import { clearPaymentScheduleLocal, loadPaymentScheduleLocal, paymentScheduleAmounts, paymentScheduleDraftFromRows, paymentScheduleDraftKey, paymentScheduleTemplate, paymentScheduleTotal, savePaymentScheduleLocal, validatePaymentSchedule, type PaymentSchedule, type PaymentScheduleDraft, type PaymentScheduleDraftStage, type PaymentScheduleTemplate } from '../lib/paymentSchedule'
 import { projectAddress, type Project } from '../lib/project'
 import { formatMoney } from '../lib/quotation'
@@ -146,6 +147,8 @@ export function PaymentSchedulePage({ projectId }: { projectId: string }) {
     }
     setBusy(false)
   }
+
+  usePrintDocumentTitle(project ? `JADUAL-BAYARAN-${project.project_no}` : undefined)
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Memuatkan jadual pembayaran...</div>
   if (error && (!project || !company || !draft)) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error}</div>
