@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 export function documentPrintFileStem(documentNumber: string): string {
   return documentNumber
     .trim()
-    .replace(/[\\/:*?"<>|\u0000-\u001F]/g, '-')
+    .replace(/[\\/:*?"<>|]/g, '-')
     .replace(/\s+/g, '_')
     .replace(/-+/g, '-')
     .slice(0, 120) || 'DOKUMEN'
