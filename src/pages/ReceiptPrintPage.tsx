@@ -2,6 +2,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { usePrintDocumentTitle } from '../lib/usePrintDocumentTitle'
 import { companyAssetBucket } from '../lib/companyAssets'
 import { formatInvoiceDate, parseInvoiceSnapshot, paymentMethodLabel, type Invoice, type InvoiceDocumentSnapshot, type InvoicePayment } from '../lib/invoice'
 import type { Project } from '../lib/project'
@@ -91,6 +92,8 @@ export function ReceiptPrintPage({ projectId, invoiceId, paymentId }: { projectI
     void loadReceipt()
     return () => { mounted = false }
   }, [invoiceId, paymentId, projectId, user])
+
+  usePrintDocumentTitle(payment?.receipt_no)
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Menyediakan resit...</div>
   if (error || !company || !project || !invoice || !payment || !snapshot) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error || 'Resit tidak dapat dibuka.'}</div>
