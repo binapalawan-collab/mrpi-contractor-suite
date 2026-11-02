@@ -119,9 +119,9 @@ textarea.field-control {
   }
 
   .print-document {
-    width: 210mm;
-    min-height: 297mm;
-    max-width: none;
+    width: 100%;
+    max-width: 210mm;
+    min-height: 0;
     overflow: visible !important;
     box-shadow: none !important;
   }
@@ -164,6 +164,108 @@ textarea.field-control {
   .payment-schedule-total-row {
     break-before: avoid-page;
     page-break-before: avoid;
+  }
+
+
+  /* Compact, correctly aligned invoice blocks on A4 and Letter.
+     Critical payment blocks must never be split across physical pages. */
+  .invoice-print-document > header {
+    padding: 4mm 7mm !important;
+    border-bottom-width: 2mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .invoice-print-body {
+    padding: 4mm 7mm 5mm !important;
+  }
+
+  .invoice-parties {
+    gap: 4mm !important;
+    padding-bottom: 3mm !important;
+  }
+
+  .invoice-parties .mt-2 {
+    margin-top: 1.5mm !important;
+  }
+
+  .invoice-parties .mt-1 {
+    margin-top: 1mm !important;
+  }
+
+  .invoice-parties .leading-5 {
+    line-height: 1rem !important;
+  }
+
+  .invoice-intro {
+    padding-top: 3mm !important;
+    padding-bottom: 4mm !important;
+  }
+
+  .invoice-intro h1 {
+    margin-top: 1.5mm !important;
+    line-height: 1.35 !important;
+  }
+
+  .invoice-table th,
+  .invoice-table td {
+    padding: 2mm 2.5mm !important;
+  }
+
+  .invoice-table tr {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .invoice-total {
+    margin-top: 3mm !important;
+    padding: 3.5mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .invoice-total .space-y-3 > :not(:first-child) {
+    margin-top: 1.5mm !important;
+  }
+
+  .invoice-total .flex > p:first-child {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .invoice-total .flex > p:last-child {
+    flex-shrink: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .invoice-bank {
+    margin-top: 3mm !important;
+    padding: 3mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .invoice-bank .mt-3 {
+    margin-top: 2mm !important;
+  }
+
+  .invoice-bank .grid > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .invoice-notes {
+    margin-top: 3mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .invoice-footer {
+    margin-top: 3mm !important;
+    padding-top: 2mm !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
   }
 
   /* Agreement PDF: keep A4 output compact and prevent orphaned signature/footer pages. */
