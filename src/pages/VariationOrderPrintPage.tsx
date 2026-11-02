@@ -2,6 +2,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { usePrintDocumentTitle } from '../lib/usePrintDocumentTitle'
 import { projectAddress, type Project } from '../lib/project'
 import { formatMoney } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
@@ -73,6 +74,8 @@ export function VariationOrderPrintPage({ projectId, variationOrderId }: { proje
     void loadDocument()
     return () => { mounted = false }
   }, [projectId, user, variationOrderId])
+
+  usePrintDocumentTitle(order && project ? `${variationOrderNumber(order.vo_no, order.revision_no)}_${project.project_no}` : undefined)
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Menyediakan dokumen Variation Order...</div>
   if (error || !company || !project || !order) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error || 'Dokumen tidak dapat dibuka.'}</div>
