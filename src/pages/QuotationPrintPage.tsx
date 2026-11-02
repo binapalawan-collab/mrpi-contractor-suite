@@ -2,6 +2,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useAuth } from '../auth/AuthProvider'
+import { usePrintDocumentTitle } from '../lib/usePrintDocumentTitle'
 import { QuotationFormattedText } from '../components/quotations/QuotationFormattedText'
 import { formatMoney, formatQuotationNumber, type Quotation, type QuotationItem, type QuotationSection } from '../lib/quotation'
 import { supabase } from '../lib/supabase'
@@ -83,6 +84,8 @@ export function QuotationPrintPage({ quotationId, revisionNo }: { quotationId: s
     void loadPrintData()
     return () => { mounted = false }
   }, [quotationId, revisionNo, user])
+
+  usePrintDocumentTitle(quotation ? formatQuotationNumber(quotation.quotation_no, revisionNo === undefined ? quotation.revision_no : Number(revisionNo)) : undefined)
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Menyediakan dokumen sebutharga...</div>
   if (error || !company || !quotation) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error || 'Dokumen tidak dapat dibuka.'}</div>
